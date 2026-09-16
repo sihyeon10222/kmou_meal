@@ -132,7 +132,7 @@ MacBook과 WebStorm이 꺼져 있어도 GitHub에서 실행됩니다.
 
 Storage 업로드 권한 오류는 서버 키를, Instagram code 190은 토큰 만료/무효화를 먼저 확인합니다.
 토큰은 영구적이지 않습니다. Meta Developer 앱의 **Instagram → API setup with Instagram login → Generate access tokens**에서 필요한 경우 새 토큰을 만들고, `.env` 수정 → `npm run check-setup` → `npm run secrets:sync` 순서로 갱신합니다.
-인계 문서에 기록된 App Secret 노출 건은 운영자가 재발급 여부를 확인해야 합니다. 이 프로젝트는 App Secret을 저장하거나 사용하지 않습니다.
+인계 문서의 App Secret 노출 건은 **2026-09-16 사용자 확인: Reset 완료**로 처리했습니다. 이 프로젝트는 App Secret을 저장하거나 사용하지 않습니다.
 
 ## 파일 구조
 
