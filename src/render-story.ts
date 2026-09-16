@@ -29,14 +29,14 @@ export async function storyHtml(input: StoryRenderData | DailyMenu): Promise<str
   ]);
   const date = new Date(`${data.date.replaceAll('/', '-')}T12:00:00+09:00`);
   if (!Number.isFinite(date.getTime())) throw new Error('이미지 날짜가 올바르지 않습니다.');
-  const dishes = (items: string[]) => items.length
+  const dishes = (items: string[], emptyLabel: string) => items.length
     ? items.map((item) => `<p class="dish">${escapeHtml(item)}</p>`).join('')
-    : '<p class="dish empty">등록된 메뉴가 없습니다.</p>';
+    : `<p class="dish empty">${escapeHtml(emptyLabel)}</p>`;
   const modeClass = `${data.mode.replace('_', '-')} ${data.noMenu ? 'no-menu' : ''} ${data.lunch?.length ? 'has-lunch' : 'no-lunch'} ${data.dinner?.length ? 'has-dinner' : 'no-dinner'}`;
   const replacements: Record<string, string> = {
     FONT: font.toString('base64'), MODE_CLASS: modeClass, TITLE: escapeHtml(data.title), EMPTY_MESSAGE: escapeHtml(data.emptyMessage ?? '오늘은 식단이 없습니다.'), DATE: data.date.slice(5).replace('/', ' / '),
     WEEKDAY: new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', weekday: 'long' }).format(date),
-    LUNCH: dishes(data.lunch ?? []), DINNER: dishes(data.dinner ?? []),
+    LUNCH: dishes(data.lunch ?? [], '중식이 없습니다.'), DINNER: dishes(data.dinner ?? [], '석식이 없습니다.'),
   };
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => replacements[key] ?? '');
 }
