@@ -9,7 +9,7 @@ on:
     - cron: '0 21 * * *' # 오후 9시
       timezone: 'Asia/Seoul'
     # TEMPORARY TEST: 한국시간 01:31에 다음날 전체 식단을 실행합니다.
-    - cron: '31 1 * * *'
+    - cron: '35 1 * * *'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
