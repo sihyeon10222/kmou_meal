@@ -9,7 +9,7 @@ on:
     - cron: '0 21 * * *' # 오후 9시
       timezone: 'Asia/Seoul'
     # TEMPORARY TEST: 한국시간 02:32 에 다음날 전체 식단을 실행합니다.
-    - cron: '35 2 * * *'
+    - cron: '52 2 * * *'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
@@ -52,7 +52,7 @@ jobs:
             "0 9 * * *") echo "story_mode=today_lunch" >> "$GITHUB_OUTPUT" ;;
             "0 15 * * *") echo "story_mode=today_dinner" >> "$GITHUB_OUTPUT" ;;
             "0 21 * * *") echo "story_mode=tomorrow_full" >> "$GITHUB_OUTPUT" ;;
-            "35 2 * * *") echo "story_mode=tomorrow_full" >> "$GITHUB_OUTPUT" ;;
+            "52 2 * * *") echo "story_mode=tomorrow_full" >> "$GITHUB_OUTPUT" ;;
             *) echo "story_mode=${{ inputs.story_mode }}" >> "$GITHUB_OUTPUT" ;;
           esac
       - run: npx playwright install --with-deps chromium
