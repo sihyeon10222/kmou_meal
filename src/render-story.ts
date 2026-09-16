@@ -11,6 +11,8 @@ export interface StoryRenderData {
   title: string;
   lunch?: string[];
   dinner?: string[];
+  noMenu?: boolean;
+  emptyMessage?: string;
 }
 
 export function escapeHtml(value: string): string {
@@ -30,8 +32,9 @@ export async function storyHtml(input: StoryRenderData | DailyMenu): Promise<str
   const dishes = (items: string[]) => items.length
     ? items.map((item) => `<p class="dish">${escapeHtml(item)}</p>`).join('')
     : '<p class="dish empty">등록된 메뉴가 없습니다.</p>';
+  const modeClass = `${data.mode.replace('_', '-')} ${data.noMenu ? 'no-menu' : ''} ${data.lunch?.length ? 'has-lunch' : 'no-lunch'} ${data.dinner?.length ? 'has-dinner' : 'no-dinner'}`;
   const replacements: Record<string, string> = {
-    FONT: font.toString('base64'), MODE_CLASS: data.mode.replace('_', '-'), TITLE: escapeHtml(data.title), DATE: data.date.slice(5).replace('/', ' / '),
+    FONT: font.toString('base64'), MODE_CLASS: modeClass, TITLE: escapeHtml(data.title), EMPTY_MESSAGE: escapeHtml(data.emptyMessage ?? '오늘은 식단이 없습니다.'), DATE: data.date.slice(5).replace('/', ' / '),
     WEEKDAY: new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', weekday: 'long' }).format(date),
     LUNCH: dishes(data.lunch ?? []), DINNER: dishes(data.dinner ?? []),
   };

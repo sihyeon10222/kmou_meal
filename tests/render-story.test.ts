@@ -31,6 +31,10 @@ test('시간대별 Story는 지정한 식사 영역과 제목만 노출한다', 
   const tomorrow = await storyHtml({ mode: 'tomorrow_full', date: '2026/09/18', title: '내일의 기숙사 식단', lunch: ['내일 점심'], dinner: ['내일 저녁'] });
   assert.ok(tomorrow.includes('내일의 기숙사 식단'));
   assert.ok(tomorrow.includes('내일 점심') && tomorrow.includes('내일 저녁'));
+
+  const empty = await storyHtml({ mode: 'today_lunch', date: '2026/09/17', title: '오늘의 기숙사 식단', lunch: [], dinner: [], noMenu: true });
+  assert.ok(empty.includes('no-menu'));
+  assert.ok(empty.includes('오늘은 식단이 없습니다.'));
 });
 
 test('긴 식단은 축소해 JPEG로 렌더링하고 너무 긴 식단은 누락시키지 않고 실패한다', async () => {

@@ -19,13 +19,11 @@ async function main(): Promise<void> {
   const menu = await fetchDailyMenu(date);
   const lunch = mode === 'today_dinner' ? [] : menu?.lunch ?? [];
   const dinner = mode === 'today_lunch' ? [] : menu?.dinner ?? [];
-  if (!menu || (!lunch.length && !dinner.length)) {
-    console.log(`${date} (${mode}): 게시할 식단이 없어 건너뜁니다.`);
-    return;
-  }
+  const noMenu = !menu || (!lunch.length && !dinner.length);
   const title = mode === 'tomorrow_full' ? '내일의 기숙사 식단' : '오늘의 기숙사 식단';
-  const imagePath = await renderStory({ mode, date: menu.date, title, lunch, dinner });
-  await writeFile(`output/${date}-${mode}.menu.json`, JSON.stringify({ mode, date: menu.date, title, lunch, dinner }, null, 2));
+  const emptyMessage = mode === 'tomorrow_full' ? '내일은 식단이 없습니다.' : '오늘은 식단이 없습니다.';
+  const imagePath = await renderStory({ mode, date: menu?.date ?? date.replaceAll('-', '/'), title, lunch, dinner, noMenu, emptyMessage });
+  await writeFile(`output/${date}-${mode}.menu.json`, JSON.stringify({ mode, date: menu?.date ?? date.replaceAll('-', '/'), title, lunch, dinner, noMenu }, null, 2));
   console.log(`Story 이미지: ${imagePath}`);
   if (preview) return;
 

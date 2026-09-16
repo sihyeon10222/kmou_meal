@@ -14,6 +14,10 @@
     .today-lunch .night { display: none; }
     .today-dinner .night { display: none; }
     .today-dinner .school { color: #c2d2d0; }
+    .no-lunch .lunch { display: none; }
+    .no-dinner .dinner { display: none; }
+    .empty-state { display: none; position: absolute; left: 69px; right: 69px; top: 650px; text-align: center; font-size: 54px; font-weight: 650; letter-spacing: -2px; }
+    .no-menu .empty-state { display: block; }
     header { position: absolute; left: 69px; right: 69px; top: 164px; }
     .eyebrow { font-size: 27px; font-weight: 650; letter-spacing: 4px; display: flex; align-items: center; gap: 21px; }
     .eyebrow::before { content: ''; display: block; width: 44px; height: 7px; background: #df713c; }
@@ -61,6 +65,7 @@
       <div class="meal-heading"><span class="symbol moon"></span><h2>저녁</h2><span class="english">DINNER</span></div>
       <div class="menu">{{DINNER}}</div>
     </section>
+    <div class="empty-state">{{EMPTY_MESSAGE}}</div>
     <footer><div class="handle">@kmou_meal</div><div class="credit">제작: 인공지능공학부 김시현</div></footer>
   </main>
 </body>
