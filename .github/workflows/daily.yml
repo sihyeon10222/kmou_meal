@@ -2,11 +2,11 @@ name: Daily KMOU Story
 
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 9 * * *' //오전 9시
       timezone: 'Asia/Seoul'
-    - cron: '0 15 * * *'
+    - cron: '0 15 * * *' //오후 3시
       timezone: 'Asia/Seoul'
-    - cron: '0 21 * * *'
+    - cron: '0 21 * * *' //오후 9시
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
