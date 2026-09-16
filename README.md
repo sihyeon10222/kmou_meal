@@ -78,9 +78,12 @@ Public 버킷이므로 게시 기록도 URL을 아는 사람은 읽을 수 있�
 
 저장소: [sihyeon10222/kmou_meal](https://github.com/sihyeon10222/kmou_meal) (비공개)
 
-`.github/workflows/daily.yml`은 기본 브랜치에서 매일 **09:00, 15:00, 21:00 KST**에 실행되도록 설정합니다.
+`.github/workflows/daily.yml`은 기본 브랜치에서 매일 **09:13, 15:13, 21:13 KST**에 실행되도록 설정합니다.
 각 cron 항목에 `timezone: 'Asia/Seoul'`을 명시하고 프로그램 날짜 계산도 `Asia/Seoul`을 사용합니다.
 GitHub 스케줄은 대기열 상태에 따라 지연될 수 있으므로 정확한 시각을 보장하지는 않습니다.
+실행 목록의 `schedule`은 예약 실행, `workflow_dispatch`는 수동 실행입니다.
+예약 실행 검증은 `gh run list --event schedule`에서 확인합니다. 수동 실행 성공만으로 예약 트리거를 검증할 수는 없습니다.
+실행 요약에는 이벤트, cron, 선택된 모드, 한국시간 시작 시각이 표시됩니다.
 
 ### 비밀값 등록/갱신
 
