@@ -11,6 +11,10 @@ test('식단 텍스트는 HTML로 실행하지 않고 빈 끼니를 표시한다
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('밥&amp;김치'));
   assert.ok(html.includes('등록된 메뉴가 없습니다.'));
+  assert.ok(html.includes('오늘의 기숙사 식단'));
+  assert.ok(html.includes('제작: 인공지능공학부 김시현'));
+  assert.ok(!html.includes('A GOOD MEAL, A GOOD DAY.'));
+  assert.ok(!html.includes('출처 · 학생생활관 식단표'));
 });
 
 test('긴 식단은 축소해 JPEG로 렌더링하고 너무 긴 식단은 누락시키지 않고 실패한다', async () => {

@@ -37,9 +37,9 @@ export async function renderStory(menu: DailyMenu, outputDir = 'output'): Promis
     // 네트워크/OS 폰트에 의존하지 않도록 저장소의 한글 폰트를 기다립니다.
     await page.evaluate(async () => {
       await document.fonts.ready;
-      if (!document.fonts.check('560 46px Meal', '오늘의 식단')) throw new Error('한글 폰트 로딩 실패');
+      if (!document.fonts.check('560 50px Meal', '오늘의 기숙사 식단')) throw new Error('한글 폰트 로딩 실패');
       for (const element of document.querySelectorAll<HTMLElement>('.menu')) {
-        let size = 46;
+        let size = 50;
         while ((element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) && size > 28) {
           size -= 1;
           element.style.fontSize = `${size}px`;
