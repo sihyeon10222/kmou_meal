@@ -2,10 +2,8 @@ name: Temporary schedule diagnostic
 run-name: Schedule diagnostic (${{ github.event.schedule }})
 on:
   schedule:
-    # Both entries target the same real moments: 03:50 / 03:55 KST.
-    - cron: '50,55 18 * * *'
-    - cron: '50,55 3 * * *'
-      timezone: 'Asia/Seoul'
+    # Isolate the UTC-only scheduler path from timezone-bearing workflows.
+    - cron: '*/5 * * * *'
 permissions: {}
 jobs:
   diagnose:

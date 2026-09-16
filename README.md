@@ -85,6 +85,17 @@ GitHub 스케줄은 대기열 상태에 따라 지연될 수 있으므로 정확
 예약 실행 검증은 `gh run list --event schedule`에서 확인합니다. 수동 실행 성공만으로 예약 트리거를 검증할 수는 없습니다.
 실행 요약에는 이벤트, cron, 선택된 모드, 한국시간 시작 시각이 표시됩니다.
 
+예약 실행이 보이지 않을 때는 다음 명령으로 수동 실행과 구분합니다.
+
+```bash
+gh run list --repo sihyeon10222/kmou_meal --event schedule --limit 10
+gh api repos/sihyeon10222/kmou_meal/actions/workflows/daily.yml --jq .state
+```
+
+`schedule` 실행 자체가 없으면 예약 이벤트 생성 단계의 문제입니다. `active` 표시와 수동 실행 성공만으로 자동 실행이 확인된 것은 아닙니다.
+실행이 생성됐는데 실패했다면 해당 실행 로그를 확인합니다. `이미 게시됨` 로그는 같은 대상 날짜·모드의 중복 방지가 동작한 정상 종료입니다.
+GitHub 공식 문서상 `timezone`은 지원됩니다. 원인을 확인하지 않고 시간대 미지원이라고 판단하지 않습니다.
+
 ### 비밀값 등록/갱신
 
 이미 등록된 환경에서는 토큰을 바꿀 때만 아래 작업을 합니다.
