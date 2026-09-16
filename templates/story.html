@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @font-face { font-family: Meal; src: url(data:font/ttf;base64,{{FONT}}) format('truetype'); font-weight: 100 900; font-display: block; }
+    * { box-sizing: border-box; }
+    html, body { width: 1080px; height: 1920px; margin: 0; }
+    body { font-family: Meal, sans-serif; color: #183d44; background: #f5f1e7; -webkit-font-smoothing: antialiased; }
+    .story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
+    .night { position: absolute; top: 960px; bottom: 0; left: 0; right: 0; background: #153b45; }
+    header { position: absolute; left: 88px; right: 88px; top: 166px; }
+    .eyebrow { font-size: 23px; font-weight: 650; letter-spacing: 4px; display: flex; align-items: center; gap: 17px; }
+    .eyebrow::before { content: ''; display: block; width: 30px; height: 6px; background: #df713c; }
+    .title-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 19px; }
+    h1 { font-size: 67px; font-weight: 750; letter-spacing: -4px; line-height: 1.3; margin: 0; }
+    .date { text-align: right; font-size: 34px; font-weight: 650; letter-spacing: -1px; padding-bottom: 3px; }
+    .date small { display: block; font-size: 21px; font-weight: 450; letter-spacing: 1px; margin-top: 6px; }
+    .school { font-size: 24px; margin-top: 12px; letter-spacing: -.4px; color: #59716d; }
+    section { position: absolute; left: 88px; right: 88px; }
+    .lunch { top: 432px; height: 477px; }
+    .dinner { top: 1050px; height: 580px; color: #f5f1e7; }
+    .meal-heading { display: flex; align-items: center; border-bottom: 1px solid #183d4438; padding-bottom: 22px; gap: 19px; }
+    .dinner .meal-heading { border-color: #f5f1e738; }
+    h2 { font-size: 38px; font-weight: 750; letter-spacing: -1.4px; line-height: 1; margin: 0; }
+    .english { font-size: 18px; font-weight: 550; letter-spacing: 3px; margin-left: auto; opacity: .7; }
+    .symbol { width: 34px; height: 34px; display: inline-block; flex-shrink: 0; }
+    .sun { border-radius: 50%; background: #df713c; box-shadow: 0 0 0 5px #df713c20; width: 25px; height: 25px; margin: 4px; }
+    .moon { border-radius: 50%; box-shadow: inset 10px -7px 0 0 #d0dfa6; transform: rotate(-15deg); }
+    .menu { height: calc(100% - 66px); padding-top: 28px; display: flex; flex-direction: column; justify-content: flex-start; gap: 12px; font-size: 46px; font-weight: 560; line-height: 1.43; letter-spacing: -1.4px; }
+    .dish { margin: 0; overflow-wrap: anywhere; }
+    .dish:first-child { font-weight: 760; }
+    .empty { opacity: .7; font-weight: 450 !important; }
+    .divider { position: absolute; top: 934px; left: 88px; font-size: 16px; letter-spacing: 5px; font-weight: 550; color: #5a766e; }
+    footer { position: absolute; left: 88px; right: 88px; top: 1690px; color: #f5f1e7; border-top: 1px solid #f5f1e738; padding-top: 22px; display: flex; justify-content: space-between; align-items: center; }
+    .handle { font-size: 27px; font-weight: 600; letter-spacing: .5px; }
+    .notice { text-align: right; font-size: 20px; line-height: 1.6; color: #c2d2d0; }
+  </style>
+</head>
+<body>
+  <main class="story">
+    <div class="night"></div>
+    <header>
+      <div class="eyebrow">KMOU DAILY MENU</div>
+      <div class="title-row"><h1>오늘의 식단</h1><div class="date">{{DATE}}<small>{{WEEKDAY}}</small></div></div>
+      <div class="school">국립한국해양대학교 학생생활관</div>
+    </header>
+    <section class="lunch" aria-label="점심 메뉴">
+      <div class="meal-heading"><span class="symbol sun"></span><h2>점심</h2><span class="english">LUNCH</span></div>
+      <div class="menu">{{LUNCH}}</div>
+    </section>
+    <div class="divider">A GOOD MEAL, A GOOD DAY.</div>
+    <section class="dinner" aria-label="저녁 메뉴">
+      <div class="meal-heading"><span class="symbol moon"></span><h2>저녁</h2><span class="english">DINNER</span></div>
+      <div class="menu">{{DINNER}}</div>
+    </section>
+    <footer><div class="handle">@kmou_meal</div><div class="notice">출처 · 학생생활관 식단표<br>식단은 사정에 따라 변경될 수 있습니다.</div></footer>
+  </main>
+</body>
+</html>

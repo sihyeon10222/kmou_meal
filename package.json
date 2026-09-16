@@ -1,0 +1,30 @@
+{
+  "name": "kmou_meal",
+  "version": "1.0.0",
+  "description": "KMOU 학생생활관 중식·석식 Instagram Story 자동화",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "preview": "tsx src/main.ts --preview",
+    "check-setup": "tsx src/check-setup.ts",
+    "secrets:sync": "tsx scripts/sync-secrets.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "fetch-menu": "tsx src/index.ts",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "dotenv": "^17.4.2",
+    "playwright": "^1.63.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.5",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3"
+  },
+  "private": true
+}

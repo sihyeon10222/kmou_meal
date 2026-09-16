@@ -1,0 +1,60 @@
+name: Daily KMOU Story
+
+on:
+  schedule:
+    # UTC 22:10 = 다음 날 07:10 Asia/Seoul
+    - cron: '10 22 * * *'
+  workflow_dispatch:
+    inputs:
+      preview_only:
+        description: '이미지만 생성하고 게시하지 않기'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kmou-instagram-story
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck && npm test && npm run build
+      - name: Render or publish today's Story
+        env:
+          PREVIEW_ONLY: ${{ inputs.preview_only }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+        run: |
+          if [ "$PREVIEW_ONLY" = "true" ]; then
+            npm run preview
+          else
+            npm start
+          fi
+      - name: Save rendered image and posting receipt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: story-${{ github.run_id }}
+          path: |
+            output/*.jpg
+            output/*.json
+          if-no-files-found: ignore
+          retention-days: 7
