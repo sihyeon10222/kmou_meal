@@ -8,7 +8,12 @@
     html, body { width: 1080px; height: 1920px; margin: 0; }
     body { font-family: Meal, sans-serif; color: #183d44; background: #f5f1e7; -webkit-font-smoothing: antialiased; }
     .story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
+    .story.today-lunch { background: #f5f1e7; }
+    .story.today-dinner { background: #153b45; color: #f5f1e7; }
     .night { position: absolute; top: 1038px; bottom: 0; left: 0; right: 0; background: #153b45; }
+    .today-lunch .night { display: none; }
+    .today-dinner .night { display: none; }
+    .today-dinner .school { color: #c2d2d0; }
     header { position: absolute; left: 69px; right: 69px; top: 164px; }
     .eyebrow { font-size: 27px; font-weight: 650; letter-spacing: 4px; display: flex; align-items: center; gap: 21px; }
     .eyebrow::before { content: ''; display: block; width: 44px; height: 7px; background: #df713c; }
@@ -20,6 +25,10 @@
     section { position: absolute; left: 69px; right: 69px; }
     .lunch { top: 468px; height: 516px; }
     .dinner { top: 1112px; height: 540px; color: #f5f1e7; }
+    .today-lunch .lunch { top: 530px; height: 900px; }
+    .today-lunch .dinner { display: none; }
+    .today-dinner .lunch { display: none; }
+    .today-dinner .dinner { top: 530px; height: 900px; }
     .meal-heading { display: flex; align-items: center; border-bottom: 2px solid #183d4426; padding-bottom: 25px; gap: 24px; }
     .dinner .meal-heading { border-color: #f5f1e738; }
     h2 { font-size: 51px; font-weight: 760; letter-spacing: -2px; line-height: 1; margin: 0; }
@@ -32,15 +41,16 @@
     .dish:first-child { font-weight: 760; }
     .empty { opacity: .7; font-weight: 450 !important; }
     footer { position: absolute; left: 69px; right: 69px; top: 1702px; color: #f5f1e7; border-top: 1px solid #f5f1e780; padding-top: 42px; display: flex; justify-content: space-between; align-items: center; }
+    .today-lunch footer { color: #183d44; border-color: #183d4440; }
     .handle, .credit { font-size: 29px; font-weight: 450; letter-spacing: -.5px; }
   </style>
 </head>
 <body>
-  <main class="story">
+  <main class="story {{MODE_CLASS}}">
     <div class="night"></div>
     <header>
       <div class="eyebrow">KMOU DAILY MENU</div>
-      <div class="title-row"><h1>오늘의 기숙사 식단</h1><div class="date">{{DATE}}<small>{{WEEKDAY}}</small></div></div>
+      <div class="title-row"><h1>{{TITLE}}</h1><div class="date">{{DATE}}<small>{{WEEKDAY}}</small></div></div>
       <div class="school">국립한국해양대학교 학생생활관</div>
     </header>
     <section class="lunch" aria-label="점심 메뉴">

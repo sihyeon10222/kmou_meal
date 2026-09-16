@@ -27,8 +27,10 @@ npx playwright install chromium
 
 ```bash
 npm run fetch-menu                   # 오늘 중식·석식 JSON
-npm run preview                      # 오늘 이미지 생성만
-npm run preview -- 2026-09-16         # 지정 날짜 이미지 생성만
+npm run preview                      # tomorrow_full: 내일 중식+석식 이미지 생성만
+npm run preview -- today_lunch 2026-09-17   # 오늘 점심만
+npm run preview -- today_dinner 2026-09-17  # 오늘 저녁만
+npm run preview -- tomorrow_full 2026-09-17 # 다음날 중식+석식
 npm run check-setup                   # 계정/키/Public 버킷 확인, 게시하지 않음
 npm start                            # 오늘 실제 Story 게시 (동일 날짜 중복 방지)
 npm run typecheck
@@ -68,7 +70,7 @@ Noto Sans KR 폰트를 저장소에 포함하여 Mac과 GitHub Linux에서 한�
 4. Supabase 왼쪽 **Storage → stories**에서 **Public**인지 확인합니다. 별도 테이블·SQL·업로드 정책은 필요하지 않습니다. 서버 키로 업로드합니다.
 5. `npm run check-setup`을 실행합니다.
 
-이미지는 `stories/YYYY-MM-DD/<실행별 UUID>.jpg`, 게시 기록은 `stories/_posts/YYYY-MM-DD.json`에 저장합니다.
+이미지는 `stories/YYYY-MM-DD/<story_mode>/<실행별 UUID>.jpg`, 게시 기록은 `stories/_posts/YYYY-MM-DD-story_mode.json`에 저장합니다.
 기록에는 날짜, 이미지 경로, 상태, container/media ID만 저장하며 비밀키는 저장하지 않습니다.
 Public 버킷이므로 게시 기록도 URL을 아는 사람은 읽을 수 있습니다.
 
@@ -76,8 +78,8 @@ Public 버킷이므로 게시 기록도 URL을 아는 사람은 읽을 수 있�
 
 저장소: [sihyeon10222/kmou_meal](https://github.com/sihyeon10222/kmou_meal) (비공개)
 
-`.github/workflows/daily.yml`은 기본 브랜치에서 매일 **07:10 KST**에 실행되도록 설정합니다.
-UTC cron은 `10 22 * * *`이고 프로그램 날짜 계산은 명시적으로 `Asia/Seoul`을 사용합니다.
+`.github/workflows/daily.yml`은 기본 브랜치에서 매일 **09:00, 15:00, 21:00 KST**에 실행되도록 설정합니다.
+각 cron 항목에 `timezone: 'Asia/Seoul'`을 명시하고 프로그램 날짜 계산도 `Asia/Seoul`을 사용합니다.
 GitHub 스케줄은 대기열 상태에 따라 지연될 수 있으므로 정확한 시각을 보장하지는 않습니다.
 
 ### 비밀값 등록/갱신
@@ -118,7 +120,7 @@ MacBook과 WebStorm이 꺼져 있어도 GitHub에서 실행됩니다.
 ## 중복 방지와 실패 복구
 
 - 해당 날짜의 메뉴가 없거나 중식·석식이 모두 비어 있으면 정상적으로 건너뜁니다.
-- 해당 날짜의 게시 기록이 `published`이면 재실행해도 게시하지 않습니다.
+- `target_date + story_mode` 게시 기록이 `published`이면 재실행해도 게시하지 않습니다.
 - GitHub concurrency와 Supabase의 `upsert:false` 기록 생성으로 동시 실행을 막습니다.
 - 게시 POST는 응답이 유실돼도 자동 재전송하지 않습니다.
 - 기록이 `posting`이면 이전 실행의 결과가 불명확하므로 자동 재게시하지 않고 실패합니다.

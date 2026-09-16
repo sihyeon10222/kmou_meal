@@ -17,6 +17,22 @@ test('식단 텍스트는 HTML로 실행하지 않고 빈 끼니를 표시한다
   assert.ok(!html.includes('출처 · 학생생활관 식단표'));
 });
 
+test('시간대별 Story는 지정한 식사 영역과 제목만 노출한다', async () => {
+  const lunch = await storyHtml({ mode: 'today_lunch', date: '2026/09/17', title: '오늘의 기숙사 식단', lunch: ['점심'], dinner: [] });
+  assert.ok(lunch.includes('today-lunch'));
+  assert.ok(lunch.includes('점심'));
+  assert.ok(lunch.includes('.today-lunch .dinner { display: none; }'));
+
+  const dinner = await storyHtml({ mode: 'today_dinner', date: '2026/09/17', title: '오늘의 기숙사 식단', lunch: [], dinner: ['저녁'] });
+  assert.ok(dinner.includes('today-dinner'));
+  assert.ok(dinner.includes('.today-dinner .lunch { display: none; }'));
+  assert.ok(dinner.includes('저녁'));
+
+  const tomorrow = await storyHtml({ mode: 'tomorrow_full', date: '2026/09/18', title: '내일의 기숙사 식단', lunch: ['내일 점심'], dinner: ['내일 저녁'] });
+  assert.ok(tomorrow.includes('내일의 기숙사 식단'));
+  assert.ok(tomorrow.includes('내일 점심') && tomorrow.includes('내일 저녁'));
+});
+
 test('긴 식단은 축소해 JPEG로 렌더링하고 너무 긴 식단은 누락시키지 않고 실패한다', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'kmou-render-'));
   try {
