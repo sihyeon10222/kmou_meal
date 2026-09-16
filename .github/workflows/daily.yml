@@ -2,11 +2,14 @@ name: Daily KMOU Story
 
 on:
   schedule:
-    - cron: '0 9 * * *' //오전 9시
+    - cron: '0 9 * * *' # 오전 9시
       timezone: 'Asia/Seoul'
-    - cron: '0 15 * * *' //오후 3시
+    - cron: '0 15 * * *' # 오후 3시
       timezone: 'Asia/Seoul'
-    - cron: '0 21 * * *' //오후 9시
+    - cron: '0 21 * * *' # 오후 9시
+      timezone: 'Asia/Seoul'
+    # TEMPORARY TEST: 한국시간 01:31에 다음날 전체 식단을 실행합니다.
+    - cron: '31 1 * * *'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
@@ -49,6 +52,7 @@ jobs:
             "0 9 * * *") echo "story_mode=today_lunch" >> "$GITHUB_OUTPUT" ;;
             "0 15 * * *") echo "story_mode=today_dinner" >> "$GITHUB_OUTPUT" ;;
             "0 21 * * *") echo "story_mode=tomorrow_full" >> "$GITHUB_OUTPUT" ;;
+            "31 1 * * *") echo "story_mode=tomorrow_full" >> "$GITHUB_OUTPUT" ;;
             *) echo "story_mode=${{ inputs.story_mode }}" >> "$GITHUB_OUTPUT" ;;
           esac
       - run: npx playwright install --with-deps chromium
