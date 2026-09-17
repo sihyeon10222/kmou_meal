@@ -1,22 +1,19 @@
 name: Daily KMOU Story
-run-name: Story · ${{ github.event_name }} · ${{ github.event.schedule || inputs.story_mode }}
+run-name: Story · ${{ inputs.story_mode }}
 
 on:
-  schedule:
-    - cron: '13 9 * * *' # 한국시간 09:13
-      timezone: 'Asia/Seoul'
-    - cron: '13 15 * * *' # 한국시간 15:13
-      timezone: 'Asia/Seoul'
-    - cron: '13 21 * * *' # 한국시간 21:13
-      timezone: 'Asia/Seoul'
   workflow_dispatch:
     inputs:
       story_mode:
         description: '생성할 Story 종류'
         type: choice
         required: true
-        options: [today_lunch, today_dinner, tomorrow_full]
+        options:
+          - today_lunch
+          - today_dinner
+          - tomorrow_full
         default: tomorrow_full
+
       preview_only:
         description: '이미지만 생성하고 게시하지 않기'
         type: boolean
@@ -33,65 +30,83 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     env:
       TZ: Asia/Seoul
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      # 저장소 코드 가져오기
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Node.js 설정
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
-      - run: npm ci
+
+      # npm 패키지 설치
+      - name: Install dependencies
+        run: npm ci
+
+      # cron-job.org 또는 수동 실행에서 전달된 Story mode 확인
       - name: Determine story mode
         id: mode
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
           INPUT_MODE: ${{ inputs.story_mode }}
         run: |
-          if [ "$EVENT_NAME" = "schedule" ]; then
-            case "$EVENT_SCHEDULE" in
-              "13 9 * * *") mode=today_lunch ;;
-              "13 15 * * *") mode=today_dinner ;;
-              "13 21 * * *") mode=tomorrow_full ;;
-              *) echo "::error::Unmapped schedule: $EVENT_SCHEDULE"; exit 1 ;;
-            esac
-          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            mode="$INPUT_MODE"
-          else
-            echo "::error::Unsupported event: $EVENT_NAME"; exit 1
-          fi
-          case "$mode" in
-            today_lunch|today_dinner|tomorrow_full) ;;
-            *) echo "::error::Invalid Story mode"; exit 1 ;;
+          case "$INPUT_MODE" in
+            today_lunch|today_dinner|tomorrow_full)
+              mode="$INPUT_MODE"
+              ;;
+            *)
+              echo "::error::Invalid Story mode: $INPUT_MODE"
+              exit 1
+              ;;
           esac
+
           echo "story_mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "event=$EVENT_NAME schedule=$EVENT_SCHEDULE mode=$mode"
+
           {
-            echo "Event: $EVENT_NAME"
-            echo "Cron: $EVENT_SCHEDULE (Asia/Seoul)"
-            echo "Mode: $mode"
-            echo "Started (KST): $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "### KMOU Story Run"
+            echo ""
+            echo "- Event: ${{ github.event_name }}"
+            echo "- Mode: $mode"
+            echo "- Started (KST): $(date '+%Y-%m-%d %H:%M:%S %Z')"
           } >> "$GITHUB_STEP_SUMMARY"
-      - run: npx playwright install --with-deps chromium
-      - run: npm run typecheck && npm test && npm run build
-      - name: Render or publish today's Story
+
+      # Playwright용 Chromium 설치
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # 타입 검사 + 테스트 + 빌드
+      - name: Check and build
+        run: npm run typecheck && npm test && npm run build
+
+      # 이미지 생성 또는 실제 Instagram Story 게시
+      - name: Render or publish Story
         env:
           STORY_MODE: ${{ steps.mode.outputs.story_mode }}
           PREVIEW_ONLY: ${{ inputs.preview_only }}
+
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
+
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+
         run: |
           if [ "$PREVIEW_ONLY" = "true" ]; then
             npm run preview
           else
             npm start
           fi
+
+      # 생성 이미지와 게시 결과를 GitHub Artifact로 7일간 저장
       - name: Save rendered image and posting receipt
         if: always()
         uses: actions/upload-artifact@v7
