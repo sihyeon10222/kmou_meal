@@ -1,12 +1,41 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { InstagramPublisher } from '../src/publish-instagram.js';
+import { InstagramPublisher, InstagramApiError } from '../src/publish-instagram.js';
 import type { PublishConfig } from '../src/config.js';
 
 const config: PublishConfig = {
   igAccessToken: 'test-token', igUserId: '123',
   supabaseUrl: 'https://example.supabase.co', supabaseKey: 'test-key', supabaseBucket: 'stories',
 };
+
+for (const scenario of ['recover', 'exhaust', 'other', 'network'] as const) {
+  test(`게시 복구: ${scenario}`, async (t) => {
+    let containers = 0;
+    let publishes = 0;
+    const ids: string[] = [];
+    const sleeps: number[] = [];
+    t.mock.method(globalThis, 'fetch', async (url: URL, init: RequestInit) => {
+      if (url.pathname === '/123/media') return Response.json({ id: `c${++containers}` });
+      if (url.pathname === '/123/media_publish') {
+        publishes++;
+        assert.equal((init.body as URLSearchParams).get('creation_id'), `c${publishes}`);
+        if (scenario === 'network') throw new Error('Connection reset');
+        if (scenario === 'recover' && publishes === 2) return Response.json({ id: 'm1' });
+        return Response.json({ error: { code: scenario === 'other' ? 190 : 24, error_subcode: 2207006 } }, { status: 400 });
+      }
+      return Response.json({ status_code: 'FINISHED' });
+    });
+    const publisher = new InstagramPublisher(config, async (ms) => { sleeps.push(ms); });
+    const result = publisher.publishStory('https://example.com/story.jpg', async (id) => { ids.push(id); });
+    if (scenario === 'recover') assert.equal(await result, 'm1');
+    else await assert.rejects(result, scenario === 'network' ? /Connection reset/ : InstagramApiError);
+    const retry = scenario === 'recover' || scenario === 'exhaust';
+    assert.equal(publishes, retry ? 2 : 1);
+    assert.equal(containers, publishes);
+    assert.deepEqual(ids, retry ? ['c1', 'c2'] : ['c1']);
+    assert.deepEqual(sleeps, retry ? [5000, 10000, 5000] : [5000]);
+  });
+}
 
 test('Instagram Login Story 생성, 상태 확인, 게시, 활성 Story 검증', async (t) => {
   const requests: string[] = [];

@@ -4,14 +4,17 @@ import type { PublishConfig } from './config.js';
 import type { StoryMode } from './render-story.js';
 
 export interface PostRecord {
+  runId: string;
   date: string;
   mode: StoryMode;
-  status: 'posting' | 'published';
+  status: 'posting' | 'published' | 'failed';
   startedAt: string;
   imagePath: string;
   containerId?: string;
+  containerIds?: string[];
   mediaId?: string;
   publishedAt?: string;
+  error?: string;
 }
 
 export class StoryStorage {
@@ -46,23 +49,10 @@ export class StoryStorage {
     return data.publicUrl;
   }
 
-  async readRecord(date: string, mode: StoryMode): Promise<PostRecord | null> {
-    const { data, error } = await this.bucket.download(`_posts/${date}-${mode}.json`);
-    if (error) {
-      const code = 'statusCode' in error ? String(error.statusCode) : '';
-      if (code === '404' || (code === '400' && error.message === 'Object not found')) return null;
-      throw new Error(`게시 기록 조회 실패: ${error.message}`);
-    }
-    const record = JSON.parse(await data.text()) as PostRecord;
-    if (record.date !== date || record.mode !== mode || !['posting', 'published'].includes(record.status)) throw new Error('게시 기록 형식이 올바르지 않습니다.');
-    return record;
-  }
-
-  /** upsert:false는 로컬/Actions 동시 실행에서도 날짜당 한 실행만 통과시킵니다. */
-  async writeRecord(record: PostRecord, create = false): Promise<void> {
-    const { error } = await this.bucket.upload(`_posts/${record.date}-${record.mode}.json`, JSON.stringify(record, null, 2), {
-      contentType: 'application/json', upsert: !create, cacheControl: '0',
+  async writeRecord(record: PostRecord): Promise<void> {
+    const { error } = await this.bucket.upload(`_posts/${record.date}/${record.mode}/${record.runId}.json`, JSON.stringify(record, null, 2), {
+      contentType: 'application/json', upsert: true, cacheControl: '0',
     });
-    if (error) throw new Error(`게시 기록 저장 실패 (중복 실행 또는 Storage 오류): ${error.message}`);
+    if (error) throw new Error(`게시 기록 저장 실패: ${error.message}`);
   }
 }

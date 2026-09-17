@@ -11,8 +11,15 @@ interface GraphData {
   error?: { code?: number; error_subcode?: number };
 }
 
+export class InstagramApiError extends Error {
+  constructor(readonly httpStatus: number, readonly code?: number, readonly subcode?: number) {
+    super(`Instagram API 실패: HTTP ${httpStatus}, code=${code ?? '-'}, subcode=${subcode ?? '-'}`);
+    this.name = 'InstagramApiError';
+  }
+}
+
 export class InstagramPublisher {
-  constructor(private config: PublishConfig) {}
+  constructor(private config: PublishConfig, private sleep: (ms: number) => Promise<unknown> = delay) {}
 
   private async request(path: string, method: 'GET' | 'POST', parameters: Record<string, string>): Promise<GraphData> {
     const url = new URL(`https://graph.instagram.com/${path}`);
@@ -26,7 +33,7 @@ export class InstagramPublisher {
     });
     const data = await response.json() as GraphData;
     if (!response.ok || data.error) {
-      throw new Error(`Instagram API 실패: HTTP ${response.status}, code=${data.error?.code ?? '-'}, subcode=${data.error?.error_subcode ?? '-'}`);
+      throw new InstagramApiError(response.status, data.error?.code, data.error?.error_subcode);
     }
     return data;
   }
@@ -55,7 +62,7 @@ export class InstagramPublisher {
       const status = await this.containerStatus(id);
       if (status === 'FINISHED') return;
       if (status !== 'IN_PROGRESS') throw new Error(`Instagram container 상태: ${status}`);
-      await delay(5_000);
+      await this.sleep(5_000);
     }
     throw new Error('Instagram 이미지 처리 대기 시간이 초과되었습니다.');
   }
@@ -67,6 +74,24 @@ export class InstagramPublisher {
     return data.id;
   }
 
+  async publishStory(imageUrl: string, onContainer: (id: string) => Promise<void>): Promise<string> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const containerId = await this.createContainer(imageUrl);
+      await onContainer(containerId);
+      await this.waitUntilReady(containerId);
+      await this.sleep(5_000);
+      try {
+        return await this.publish(containerId);
+      } catch (error) {
+        if (attempt !== 0 || !(error instanceof InstagramApiError)
+          || error.code !== 24 || error.subcode !== 2207006) throw error;
+        console.warn('Instagram 24/2207006: 10초 후 새 container로 복구합니다 (복구 1/1).');
+        await this.sleep(10_000);
+      }
+    }
+    throw new Error('Instagram 게시 시도 횟수를 초과했습니다.');
+  }
+
   async verifyStory(mediaId: string): Promise<{ id: string; mediaType: string; timestamp: string }> {
     const media = await this.request(mediaId, 'GET', { fields: 'id,media_type,timestamp' });
     if (media.id !== mediaId || media.media_type !== 'IMAGE' || !media.timestamp) throw new Error('게시된 이미지 확인 실패');
@@ -75,7 +100,7 @@ export class InstagramPublisher {
       if (stories.data?.some((story) => story.id === mediaId)) {
         return { id: mediaId, mediaType: media.media_type, timestamp: media.timestamp };
       }
-      await delay(5_000);
+      await this.sleep(5_000);
     }
     throw new Error('게시 응답은 성공했지만 활성 Story 목록에서 아직 확인되지 않습니다. 재게시하지 말고 계정을 확인하세요.');
   }

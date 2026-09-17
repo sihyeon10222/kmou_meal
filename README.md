@@ -32,13 +32,13 @@ npm run preview -- today_lunch 2026-09-17   # 오늘 점심만
 npm run preview -- today_dinner 2026-09-17  # 오늘 저녁만
 npm run preview -- tomorrow_full 2026-09-17 # 다음날 중식+석식
 npm run check-setup                   # 계정/키/Public 버킷 확인, 게시하지 않음
-npm start                            # 오늘 실제 Story 게시 (동일 날짜 중복 방지)
+npm start                            # 기본: 내일 중식+석식 실제 게시 (재실행하면 다시 게시)
 npm run typecheck
 npm test
 npm run build
 ```
 
-이미지는 `output/YYYY-MM-DD.jpg`, 디자인 확인용 HTML은 같은 폴더의 `.html`입니다.
+이미지는 `output/YYYY-MM-DD-story_mode.jpg`, 디자인 확인용 HTML은 같은 폴더의 `.html`입니다.
 HTML은 폰트를 포함하므로 용량이 크며 Git에 저장하지 않습니다.
 
 ## 디자인 수정
@@ -70,31 +70,37 @@ Noto Sans KR 폰트를 저장소에 포함하여 Mac과 GitHub Linux에서 한�
 4. Supabase 왼쪽 **Storage → stories**에서 **Public**인지 확인합니다. 별도 테이블·SQL·업로드 정책은 필요하지 않습니다. 서버 키로 업로드합니다.
 5. `npm run check-setup`을 실행합니다.
 
-이미지는 `stories/YYYY-MM-DD/<story_mode>/<실행별 UUID>.jpg`, 게시 기록은 `stories/_posts/YYYY-MM-DD-story_mode.json`에 저장합니다.
+이미지는 `stories/YYYY-MM-DD/<story_mode>/<실행별 UUID>.jpg`, 게시 기록은 `stories/_posts/YYYY-MM-DD/<story_mode>/<runId>.json`에 저장합니다.
 기록에는 날짜, 이미지 경로, 상태, container/media ID만 저장하며 비밀키는 저장하지 않습니다.
 Public 버킷이므로 게시 기록도 URL을 아는 사람은 읽을 수 있습니다.
 
 ## GitHub Actions 설정과 운영
 
-저장소: [sihyeon10222/kmou_meal](https://github.com/sihyeon10222/kmou_meal) (비공개)
+저장소: [sihyeon10222/kmou_meal](https://github.com/sihyeon10222/kmou_meal)
 
-`.github/workflows/daily.yml`은 기본 브랜치에서 매일 **09:13, 15:13, 21:13 KST**에 실행되도록 설정합니다.
-각 cron 항목에 `timezone: 'Asia/Seoul'`을 명시하고 프로그램 날짜 계산도 `Asia/Seoul`을 사용합니다.
-GitHub 스케줄은 대기열 상태에 따라 지연될 수 있으므로 정확한 시각을 보장하지는 않습니다.
-실행 목록의 `schedule`은 예약 실행, `workflow_dispatch`는 수동 실행입니다.
-예약 실행 검증은 `gh run list --event schedule`에서 확인합니다. 수동 실행 성공만으로 예약 트리거를 검증할 수는 없습니다.
-실행 요약에는 이벤트, cron, 선택된 모드, 한국시간 시작 시각이 표시됩니다.
+GitHub 자체 `schedule`은 사용하지 않습니다. **cron-job.org → GitHub workflow_dispatch → 이미지 생성·게시**로 실행합니다.
+cron-job.org 자동 실행은 사용자 테스트로 동작 확인됐습니다. 기존 외부 작업 설정을 유지합니다.
 
-예약 실행이 보이지 않을 때는 다음 명령으로 수동 실행과 구분합니다.
+| 한국시간 (Asia/Seoul) | story_mode | 게시 대상 |
+| --- | --- | --- |
+| 매일 10:00 | today_lunch | 오늘 점심 |
+| 매일 16:00 | today_dinner | 오늘 저녁 |
+| 매일 22:00 | tomorrow_full | 내일 점심+저녁 |
 
-```bash
-gh run list --repo sihyeon10222/kmou_meal --event schedule --limit 10
-gh api repos/sihyeon10222/kmou_meal/actions/workflows/daily.yml --jq .state
+세 작업 모두 POST `https://api.github.com/repos/sihyeon10222/kmou_meal/actions/workflows/daily.yml/dispatches`를 호출합니다.
+Headers: `Authorization: Bearer <PAT>`, `Accept: application/vnd.github+json`, `Content-Type: application/json`, `X-GitHub-Api-Version: 2022-11-28`.
+Basic Auth는 사용하지 않습니다. PAT는 이 저장소만 선택한 Actions 읽기/쓰기 권한으로 cron-job.org에만 저장합니다.
+
+```json
+{"ref":"main","inputs":{"story_mode":"today_lunch","preview_only":"false"}}
 ```
 
-`schedule` 실행 자체가 없으면 예약 이벤트 생성 단계의 문제입니다. `active` 표시와 수동 실행 성공만으로 자동 실행이 확인된 것은 아닙니다.
-실행이 생성됐는데 실패했다면 해당 실행 로그를 확인합니다. `이미 게시됨` 로그는 같은 대상 날짜·모드의 중복 방지가 동작한 정상 종료입니다.
-GitHub 공식 문서상 `timezone`은 지원됩니다. 원인을 확인하지 않고 시간대 미지원이라고 판단하지 않습니다.
+각 작업의 `story_mode`만 위 표에 맞춥니다. 외부 호출과 웹 수동 실행 모두 GitHub에서는 `workflow_dispatch`로 표시됩니다.
+cron-job.org 요청 성공은 실행 요청 접수를 의미합니다. 실제 게시 성공은 Actions 실행 결과와 게시 로그에서 확인합니다.
+
+```bash
+gh run list --repo sihyeon10222/kmou_meal --workflow daily.yml --limit 10
+```
 
 ### 비밀값 등록/갱신
 
@@ -127,25 +133,20 @@ npm run secrets:sync
 5. 실행 항목 → **publish** → 각 단계 로그를 확인합니다.
 6. 실행 요약 아래 **Artifacts → story-실행번호**에서 JPEG와 식단/게시 기록 JSON을 내려받을 수 있습니다. 7일간 보관합니다.
 
-자동 실행 중지: **Actions → Daily KMOU Story → 오른쪽 ⋯ → Disable workflow**.
-다시 시작: 같은 화면에서 **Enable workflow**.
+자동 실행 중지/재개는 cron-job.org의 세 작업을 비활성화/활성화합니다. GitHub 워크플로를 Disable하면 수동·외부 호출 모두 중지됩니다.
 MacBook과 WebStorm이 꺼져 있어도 GitHub에서 실행됩니다.
 
-## 중복 방지와 실패 복구
+## 재게시와 실패 복구
 
-- 식단이 없거나 중식·석식이 모두 비어 있으면 `오늘은 식단이 없습니다.` 이미지를 만들고 실제 실행에서는 그 이미지를 게시합니다. 미리보기에서는 이미지만 만듭니다.
-- 중식 또는 석식 한쪽만 있으면 빈 식사 영역을 숨기고 존재하는 식사만 표시합니다.
-- `target_date + story_mode` 게시 기록이 `published`이면 재실행해도 게시하지 않습니다.
-- GitHub concurrency와 Supabase의 `upsert:false` 기록 생성으로 동시 실행을 막습니다.
-- 게시 POST는 응답이 유실돼도 자동 재전송하지 않습니다.
-- 기록이 `posting`이면 이전 실행의 결과가 불명확하므로 자동 재게시하지 않고 실패합니다.
-
-`posting` 오류 복구:
-
-1. Actions 로그와 Artifacts의 `.publish.json`, Supabase **Storage → stories → _posts → 해당 날짜 JSON**을 확인합니다.
-2. Instagram 앱에서 @kmou_meal의 Story가 올라왔는지 확인합니다.
-3. 실제 게시가 확인됐다면 기록을 지우고 재실행하지 않습니다. container의 `PUBLISHED` 상태 또는 media ID를 확인해 기록을 복구해야 합니다.
-4. 게시가 되지 않았다는 사실을 확인한 경우에만 `_posts/해당 날짜.json`을 삭제하고 그날 다시 실행합니다. 이미지 파일만 삭제해서는 게시 기록이 초기화되지 않습니다.
+- `npm start` 또는 새 workflow 실행은 같은 날짜·모드라도 새 Story를 게시합니다. 외부 작업의 중복 호출도 재게시하므로 cron-job.org에 같은 작업을 이중 등록하지 않습니다.
+- 매 실행 UUID `runId`로 이미지와 기록을 분리합니다. 기존 `_posts/YYYY-MM-DD-mode.json`은 조회하거나 삭제하지 않으며, 새 실행을 막지 않습니다.
+- 실행 기록은 `posting → published` 또는 `failed`로 갱신합니다. 복구 전후 container ID, media ID와 오류를 기록하며 로컬/Actions Artifact에도 실행별 `.publish.json`을 남깁니다.
+- `failed`는 실행 실패를 뜻하며, 네트워크 응답 유실 시 Instagram에 게시되지 않았다는 보장은 아닙니다. 게시 성공 후 검증/기록 저장이 실패하면 `published` 상태와 media ID를 유지합니다.
+- container가 `FINISHED`이면 5초 안정화 후 게시합니다. 게시 API가 명시적으로 `code=24 / subcode=2207006`을 반환할 때만 10초 뒤 새 container로 한 번 복구합니다. 최대 게시 시도는 2회입니다.
+- 다른 오류와 네트워크 응답 유실은 자동 재게시하지 않습니다. 오류 시 해당 실행 로그와 runId 기록을 확인합니다. 새 실행을 시작하면 기존 성공/실패와 관계없이 다시 게시되며, 기존 기록을 지울 필요는 없습니다.
+- GitHub concurrency는 유지합니다. 짧은 시간에 여러 요청을 몰아서 보내는 용도로 사용하지 않습니다.
+- 모든 `npm run preview` 및 `preview_only=true` 실행은 이미지만 만들며 Storage 업로드와 Instagram 게시를 하지 않습니다.
+- 식단이 없으면 오늘/내일에 맞는 식단 없음 이미지를 게시합니다. 전체 식단 모드에서 한 끼만 없으면 해당 영역에 식단 없음을 표시합니다.
 
 Storage 업로드 권한 오류는 서버 키를, Instagram code 190은 토큰 만료/무효화를 먼저 확인합니다.
 토큰은 영구적이지 않습니다. Meta Developer 앱의 **Instagram → API setup with Instagram login → Generate access tokens**에서 필요한 경우 새 토큰을 만들고, `.env` 수정 → `npm run check-setup` → `npm run secrets:sync` 순서로 갱신합니다.
@@ -160,6 +161,7 @@ src/
   config.ts              # .env 읽기, 설정 검증, 비밀값 로그 차단
   upload-supabase.ts     # 이미지 업로드·공개 URL 검증·게시 기록
   publish-instagram.ts   # 계정 확인 → container → publish → 활성 Story 검증
+  post-story.ts          # 실행별 게시 기록과 실패 처리
   main.ts                # 전체 실행 / 미리보기
   check-setup.ts         # 게시 없이 설정 확인
   index.ts               # 식단 조회 CLI
