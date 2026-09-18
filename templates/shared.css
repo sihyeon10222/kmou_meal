@@ -1,0 +1,25 @@
+:root { --paper: #f5f1e7; --ink: #183d44; --blue: #2259b1; --orange: #df713c; --moon: #d0dfa6; }
+* { box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; margin: 0; }
+body { font-family: Meal, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+.story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
+header { position: absolute; left: 69px; right: 69px; top: 164px; }
+.eyebrow { height: 32px; font-size: 27px; font-weight: 650; letter-spacing: 4px; display: flex; align-items: center; gap: 21px; }
+.eyebrow::before { content: ''; width: 44px; height: 7px; background: var(--orange); }
+h1 { font-size: 70px; font-weight: 770; letter-spacing: -4px; line-height: 1.2; margin: 30px 0 0; white-space: nowrap; }
+.meal { display: flex; flex-direction: column; min-height: 0; }
+.meal-heading { flex: 0 0 78px; display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #183d4426; padding-bottom: 25px; }
+h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px; margin: 0; }
+.symbol { width: 48px; height: 48px; display: inline-block; flex-shrink: 0; }
+.sun { border-radius: 50%; background: #df5e27; box-shadow: 0 0 0 7px #ed956450; width: 34px; height: 34px; margin: 7px; }
+.moon { border-radius: 50%; box-shadow: inset 14px -9px 0 0 var(--moon); transform: rotate(-15deg); }
+.menu { flex: 1; min-height: 0; padding-top: 28px; display: flex; flex-direction: column; gap: 15px; font-size: 50px; font-weight: 560; line-height: 1.36; letter-spacing: -1.8px; }
+.dish { margin: 0; flex-shrink: 0; overflow-wrap: anywhere; }
+.dish:first-child { font-weight: 760; }
+.empty { opacity: .75; font-weight: 450 !important; }
+.night { position: absolute; inset: 1038px 0 0; background: var(--blue); }
+.dinner .meal-heading { border-color: #f5f1e738; }
+.story.dinner { background: var(--blue); color: var(--paper); }
+.story.dinner .night, .story.lunch .night { display: none; }
+footer { position: absolute; left: 69px; right: 69px; top: 1702px; color: var(--paper); border-top: 1px solid #f5f1e780; padding-top: 42px; display: flex; justify-content: space-between; font-size: 29px; font-weight: 450; letter-spacing: -.5px; }
+.story.lunch footer { color: var(--ink); border-color: #183d4440; }

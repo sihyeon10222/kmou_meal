@@ -23,7 +23,7 @@ export function seoulDate(date: Date = new Date()): string {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
-function validateDate(date: string): string {
+export function validateDate(date: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error('날짜는 YYYY-MM-DD 형식이어야 합니다.');
   }

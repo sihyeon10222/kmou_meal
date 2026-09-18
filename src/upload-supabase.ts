@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 import type { PublishConfig } from './config.js';
-import type { StoryMode } from './render-story.js';
+import type { StoryMode } from './story-modes.js';
 
 export interface PostRecord {
   runId: string;

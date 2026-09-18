@@ -1,0 +1,13 @@
+.teacher .meal { position: absolute; left: 69px; right: 69px; }
+.teacher.full .breakfast { top: 450px; height: 165px; }
+.teacher.full .breakfast .meal-heading { flex-basis: 58px; padding-bottom: 12px; }
+.teacher.full .breakfast h2 { font-size: 40px; }
+.teacher.full .breakfast .symbol { transform: scale(.7); }
+.teacher.full .breakfast .menu { padding-top: 12px; }
+.teacher.full .meal.lunch { top: 650px; height: 470px; }
+.teacher.full .meal.dinner { top: 1200px; height: 452px; color: var(--paper); }
+.teacher.full .night { top: 1150px; }
+.teacher.full h2 { font-size: 48px; }
+.teacher.full .meal-heading { flex-basis: 66px; padding-bottom: 13px; }
+.teacher.full .menu { font-size: 35px; line-height: 1.25; gap: 7px; padding-top: 16px; }
+.teacher.lunch .meal, .teacher.dinner .meal { top: 530px; height: 1050px; }

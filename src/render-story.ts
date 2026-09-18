@@ -1,73 +1,60 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
-import type { DailyMenu } from './fetch-menu.js';
-
-export type StoryMode = 'today_lunch' | 'today_dinner' | 'tomorrow_full';
-
-export interface StoryRenderData {
-  mode: StoryMode;
-  date: string;
-  title: string;
-  lunch?: string[];
-  dinner?: string[];
-  noMenu?: boolean;
-  emptyMessage?: string;
-}
+import type { StoryRenderData } from './story-data.js';
 
 export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 }
 
-export async function storyHtml(input: StoryRenderData | DailyMenu): Promise<string> {
-  const data: StoryRenderData = 'mode' in input
-    ? input
-    : { mode: 'tomorrow_full', date: input.date, title: '오늘의 기숙사 식단', lunch: input.lunch, dinner: input.dinner };
-  const [template, font] = await Promise.all([
+export async function storyHtml(data: StoryRenderData): Promise<string> {
+  const { request, sections } = data;
+  const [template, css, layout, font] = await Promise.all([
     readFile(new URL('../templates/story.html', import.meta.url), 'utf8'),
+    readFile(new URL('../templates/shared.css', import.meta.url), 'utf8'),
+    readFile(new URL(`../templates/${request.restaurant}.css`, import.meta.url), 'utf8'),
     readFile(new URL('../assets/fonts/NotoSansKR.ttf', import.meta.url)),
   ]);
-  const date = new Date(`${data.date.replaceAll('/', '-')}T12:00:00+09:00`);
-  if (!Number.isFinite(date.getTime())) throw new Error('이미지 날짜가 올바르지 않습니다.');
-  const dishes = (items: string[], emptyLabel: string) => items.length
-    ? items.map((item) => `<p class="dish">${escapeHtml(item)}</p>`).join('')
-    : `<p class="dish empty">${escapeHtml(emptyLabel)}</p>`;
-  const modeClass = `${data.mode.replace('_', '-')} ${data.noMenu ? 'no-menu' : ''} ${data.lunch?.length ? 'has-lunch' : 'no-lunch'} ${data.dinner?.length ? 'has-dinner' : 'no-dinner'}`;
-  const displayTitle = `${date.getMonth() + 1}월 ${date.getDate()}일 ${new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', weekday: 'long' }).format(date)}<br>기숙사 식단`;
+  const content = sections.map(section => {
+    const symbol = section.key === 'dinner' ? 'moon' : 'sun';
+    const items = section.items.length
+      ? section.items.map(item => `<p class="dish">${escapeHtml(item)}</p>`).join('')
+      : '<p class="dish empty">메뉴 없음</p>';
+    return `<section class="meal ${section.key}" aria-label="${escapeHtml(section.label)}"><div class="meal-heading"><span class="symbol ${symbol}"></span><h2>${escapeHtml(section.label)}</h2></div><div class="menu">${items}</div></section>`;
+  }).join('');
   const replacements: Record<string, string> = {
-    FONT: font.toString('base64'), MODE_CLASS: modeClass, TITLE: escapeHtml(data.title), DISPLAY_TITLE: displayTitle, EMPTY_MESSAGE: escapeHtml(data.emptyMessage ?? '오늘은 식단이 없습니다.'), DATE: data.date.slice(5).replace('/', ' / '),
-    WEEKDAY: new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', weekday: 'long' }).format(date),
-    LUNCH: dishes(data.lunch ?? [], '중식이 없습니다.'), DINNER: dishes(data.dinner ?? [], '석식이 없습니다.'),
+    FONT: font.toString('base64'), CSS: css + '\n' + layout,
+    CLASSES: `${request.restaurant} ${request.scope}`,
+    DATE: escapeHtml(request.dateLabel), TITLE: escapeHtml(request.title), SECTIONS: content,
   };
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => replacements[key] ?? '');
 }
 
-/** JPEG는 Instagram에 전달할 최종 파일입니다. HTML은 로컬 디자인 확인용입니다. */
-export async function renderStory(input: StoryRenderData | DailyMenu, outputDir = 'output'): Promise<string> {
-  const data: StoryRenderData = 'mode' in input
-    ? input
-    : { mode: 'tomorrow_full', date: input.date, title: '오늘의 기숙사 식단', lunch: input.lunch, dinner: input.dinner };
+/** 모든 메뉴를 담은 한 장. 읽을 수 있는 최소 크기에서도 넘치면 게시 전 실패합니다. */
+export async function renderStory(data: StoryRenderData, outputDir = 'output'): Promise<string> {
   const html = await storyHtml(data);
   await mkdir(outputDir, { recursive: true });
-  const stem = resolve(outputDir, `${data.date.replaceAll('/', '-')}-${data.mode}`);
+  const stem = resolve(outputDir, `${data.request.targetDate}-${data.request.mode}`);
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: 'load' });
-    // 네트워크/OS 폰트에 의존하지 않도록 저장소의 한글 폰트를 기다립니다.
     await page.evaluate(async () => {
       await document.fonts.ready;
-      if (!document.fonts.check('560 50px Meal', '오늘의 기숙사 식단')) throw new Error('한글 폰트 로딩 실패');
+      if (!document.fonts.check('560 50px Meal', '기숙사 식단')) throw new Error('한글 폰트 로딩 실패');
       for (const element of document.querySelectorAll<HTMLElement>('.menu')) {
-        let size = 50;
-        while ((element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) && size > 28) {
+        let size = parseFloat(getComputedStyle(element).fontSize);
+        while ((element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1) && size > 28) {
           size -= 1;
           element.style.fontSize = `${size}px`;
-          element.style.gap = `${Math.max(6, size - 34)}px`;
+          element.style.gap = `${Math.max(5, size - 35)}px`;
         }
-        if (element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) {
-          throw new Error('메뉴가 이미지 영역을 초과합니다. 게시 전 레이아웃 조정이 필요합니다.');
-        }
+        if (element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1) throw new Error('메뉴가 이미지 영역을 초과합니다. 게시 전 레이아웃 조정이 필요합니다.');
+      }
+      const footer = document.querySelector('footer')!.getBoundingClientRect();
+      for (const section of document.querySelectorAll('.meal')) {
+        const rect = section.getBoundingClientRect();
+        if (rect.bottom > footer.top || rect.left < 0 || rect.right > 1080) throw new Error('메뉴 레이아웃이 안전 영역을 초과합니다.');
       }
     });
     await writeFile(`${stem}.html`, await page.content());

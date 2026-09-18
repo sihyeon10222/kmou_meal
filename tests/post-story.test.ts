@@ -21,7 +21,7 @@ test('동일 날짜/모드 재게시, legacy 기록 무시, run별 Storage 경�
     },
     async verifyStory(id: string) { return { id, mediaType: 'IMAGE', timestamp: 'now' }; },
   };
-  const run = () => postStory('2026-09-17', 'today_lunch', 'image.jpg', {
+  const run = () => postStory('2026-09-17', 'today_dormitory_lunch', 'image.jpg', {
     uploadImage: async (_path, objectPath) => `https://example.com/${objectPath}`,
     writeRecord: (record) => storage.writeRecord(record),
   }, instagram, async () => {});
@@ -31,8 +31,8 @@ test('동일 날짜/모드 재게시, legacy 기록 무시, run별 Storage 경�
   assert.notEqual(a.runId, b.runId);
   for (const record of [a, b]) {
     assert.equal(record.status, 'published');
-    assert.equal(record.imagePath, `2026-09-17/today_lunch/${record.runId}.jpg`);
-    assert.equal(paths.filter(p => p.endsWith(`/_posts/2026-09-17/today_lunch/${record.runId}.json`)).length, 3);
+    assert.equal(record.imagePath, `2026-09-17/today_dormitory_lunch/${record.runId}.jpg`);
+    assert.equal(paths.filter(p => p.endsWith(`/_posts/2026-09-17/today_dormitory_lunch/${record.runId}.json`)).length, 3);
   }
 });
 
@@ -44,7 +44,7 @@ test('실패 기록이 다음 실행을 막지 않고 게시 후 검증 실패�
     async publishStory() { if (failPublish) throw new Error('publish error'); return 'm1'; },
     async verifyStory(): Promise<never> { throw new Error('verify error'); },
   };
-  const run = () => postStory('2026-09-17', 'today_lunch', 'image.jpg', storage, instagram, async () => {});
+  const run = () => postStory('2026-09-17', 'today_dormitory_lunch', 'image.jpg', storage, instagram, async () => {});
   await assert.rejects(run(), /publish error/);
   const failed = records.at(-1)!;
   assert.equal(failed.status, 'failed');

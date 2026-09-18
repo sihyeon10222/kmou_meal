@@ -1,7 +1,8 @@
 # KMOU Meal
 
-국립한국해양대학교 학생생활관 식단을 **위쪽 점심 / 아래쪽 저녁**으로 구성한 **1080×1920 JPEG**로 만들고, Supabase Storage를 거쳐 **@kmou_meal Instagram Story**로 매일 게시합니다. 조식은 제외합니다.
-Node.js 24 + TypeScript + Playwright / GitHub Actions / Supabase / Instagram Login API를 사용합니다.
+국립한국해양대학교 **기숙사 · 학식 스낵코너 · 교직원 식당** 식단을 **1080×1920 JPEG**로 만들고, Supabase Storage를 거쳐 **@kmou_meal Instagram Story**로 게시합니다.
+Node.js 24 + TypeScript + Cheerio + Playwright / GitHub Actions / Supabase / Instagram Login API를 사용합니다.
+기숙사는 중식·석식, 스낵은 네 코너를 한 장, 교직원 full은 조식·중식·석식을 한 장에 표시합니다. 가격은 제외합니다.
 인계 문서의 기존 Instagram 계정·권한과 `stories` Public 버킷을 그대로 사용합니다.
 
 ## WebStorm에서 실행
@@ -27,12 +28,16 @@ npx playwright install chromium
 
 ```bash
 npm run fetch-menu                   # 오늘 중식·석식 JSON
-npm run preview                      # tomorrow_full: 내일 중식+석식 이미지 생성만
-npm run preview -- today_lunch 2026-09-17   # 오늘 점심만
-npm run preview -- today_dinner 2026-09-17  # 오늘 저녁만
-npm run preview -- tomorrow_full 2026-09-17 # 다음날 중식+석식
+npm run preview                      # 기본: tomorrow_full_batch, 이미지만 생성
+npm run preview -- today_lunch_batch 2026-09-18
+npm run preview -- today_dinner_batch 2026-09-18
+npm run preview -- tomorrow_full_batch 2026-09-17
+npm run preview -- today_snack 2026-09-18
+npm run preview -- today_teacher_full 2026-09-18
+npm run preview -- today_dormitory_lunch 2026-09-18
 npm run check-setup                   # 계정/키/Public 버킷 확인, 게시하지 않음
-npm start                            # 기본: 내일 중식+석식 실제 게시 (재실행하면 다시 게시)
+npm start                            # 기본: tomorrow_full_batch 실제 순차 게시
+npm start -- today_teacher_lunch      # 개별 식당 재게시도 가능
 npm run typecheck
 npm test
 npm run build
@@ -40,11 +45,29 @@ npm run build
 
 이미지는 `output/YYYY-MM-DD-story_mode.jpg`, 디자인 확인용 HTML은 같은 폴더의 `.html`입니다.
 HTML은 폰트를 포함하므로 용량이 크며 Git에 저장하지 않습니다.
+명령의 날짜 인자는 **기준일**입니다. tomorrow 모드는 하루를 더한 대상 날짜로 처리하며, 생략하면 한국시간 오늘을 사용합니다.
+모든 preview는 인증 정보 없이 실행 가능하며 Supabase 업로드·Instagram 게시를 하지 않습니다.
+
+## 모드와 운영 규칙
+
+| 식당 | 개별 StoryMode (총 14개) |
+| --- | --- |
+| 기숙사 | `today_dormitory_lunch`, `today_dormitory_dinner`, `today_dormitory_full`, `tomorrow_dormitory_lunch`, `tomorrow_dormitory_dinner`, `tomorrow_dormitory_full` |
+| 스낵 | `today_snack`, `tomorrow_snack` |
+| 교직원 | `today_teacher_lunch`, `today_teacher_dinner`, `today_teacher_full`, `tomorrow_teacher_lunch`, `tomorrow_teacher_dinner`, `tomorrow_teacher_full` |
+
+- 학식 skip은 **대상 날짜의 토·일**만 적용합니다. 개별 실행과 preview도 같은 규칙입니다.
+- 금요일 밤의 내일 배치는 기숙사만, 일요일 밤의 내일 배치는 세 식당을 처리합니다.
+- 평일 공휴일은 skip하지 않습니다. 메뉴가 없으면 해당 영역에 `메뉴 없음`을 표시합니다. 스낵의 네 코너, 교직원의 요청 끼니 영역은 유지합니다.
+- 학식은 검증된 POST HTML 응답을 Cheerio로 파싱합니다. 표 제목이 사라지면 오류이고, 표가 있지만 메뉴 행이 없으면 정상 빈 메뉴입니다.
+- 배치는 기숙사 → 스낵 → 교직원 순서로 **하나씩** 게시합니다. 스낵이 없는 저녁 배치는 기숙사 → 교직원입니다.
+- 한 Story 실패 시 다음 Story를 계속 처리한 후 최종 프로세스를 실패 종료합니다. `.run.json`에 각 Story의 성공·실패·skip을 남깁니다. 복구는 실패한 개별 모드를 실행하면 됩니다. 전체 배치를 재실행하면 이미 성공한 식당도 다시 게시됩니다.
+- 학교의 늦은 등록을 위한 재조회 예약이나 별도 공휴일 API는 사용하지 않습니다.
 
 ## 디자인 수정
 
-`templates/story.html`에서 색상, 간격, 폰트 크기를 수정하고 `npm run preview`로 확인합니다.
-상단 크림색 영역에는 헤더와 점심, 하단 남색 영역에는 저녁과 제작자 정보를 배치합니다.
+`templates/story.html`과 `shared.css`는 공통 헤더·푸터·폰트·크림/블루 팔레트·여백을 정의합니다.
+`dormitory.css`, `snack.css`, `teacher.css`는 각 식당의 배치를 정의합니다. 스낵은 양식/정식을 크게, 라면/분식을 작게 배치합니다. 교직원 full은 작은 조식 영역과 큰 중식/석식 영역으로 나눕니다.
 Noto Sans KR 폰트를 저장소에 포함하여 Mac과 GitHub Linux에서 한글을 동일하게 렌더링합니다.
 긴 메뉴는 글자 크기를 자동으로 줄입니다. 최소 크기에서도 넘치면 메뉴를 잘라서 게시하지 않고 실패합니다.
 
@@ -79,23 +102,25 @@ Public 버킷이므로 게시 기록도 URL을 아는 사람은 읽을 수 있�
 저장소: [sihyeon10222/kmou_meal](https://github.com/sihyeon10222/kmou_meal)
 
 GitHub 자체 `schedule`은 사용하지 않습니다. **cron-job.org → GitHub workflow_dispatch → 이미지 생성·게시**로 실행합니다.
-cron-job.org 자동 실행은 사용자 테스트로 동작 확인됐습니다. 기존 외부 작업 설정을 유지합니다.
+cron-job.org 자동 실행은 사용자 테스트로 동작 확인됐습니다. 시각·URL·인증 헤더를 유지하고 요청 본문만 아래 배치 형식으로 전환합니다.
 
-| 한국시간 (Asia/Seoul) | story_mode | 게시 대상 |
+| 한국시간 (Asia/Seoul) | run_mode | 평일 대상 게시 순서 |
 | --- | --- | --- |
-| 매일 10:00 | today_lunch | 오늘 점심 |
-| 매일 16:00 | today_dinner | 오늘 저녁 |
-| 매일 22:00 | tomorrow_full | 내일 점심+저녁 |
+| 매일 10:00 | today_lunch_batch | 기숙사 점심 → 스낵 → 교직원 점심 |
+| 매일 16:00 | today_dinner_batch | 기숙사 저녁 → 교직원 저녁 |
+| 매일 22:00 | tomorrow_full_batch | 내일 기숙사 full → 스낵 → 교직원 full |
 
 세 작업 모두 POST `https://api.github.com/repos/sihyeon10222/kmou_meal/actions/workflows/daily.yml/dispatches`를 호출합니다.
 Headers: `Authorization: Bearer <PAT>`, `Accept: application/vnd.github+json`, `Content-Type: application/json`, `X-GitHub-Api-Version: 2022-11-28`.
 Basic Auth는 사용하지 않습니다. PAT는 이 저장소만 선택한 Actions 읽기/쓰기 권한으로 cron-job.org에만 저장합니다.
 
 ```json
-{"ref":"main","inputs":{"story_mode":"today_lunch","preview_only":"false"}}
+{"ref":"main","inputs":{"run_mode":"today_lunch_batch","preview_only":"false"}}
 ```
 
-각 작업의 `story_mode`만 위 표에 맞춥니다. 외부 호출과 웹 수동 실행 모두 GitHub에서는 `workflow_dispatch`로 표시됩니다.
+cron-job.org → 각 작업 편집 → Advanced의 Request body에서 `story_mode` 대신 `run_mode`를 사용하고 값을 위 표대로 바꿉니다. 기존 작업을 편집하며 새 작업을 추가하지 않습니다.
+전환 중 자동화를 끊지 않도록 기존 `story_mode`의 `today_lunch`/`today_dinner`/`tomorrow_full` 요청도 대응하는 새 batch로 변환합니다. 호환 필드는 비어 있지 않으면 `run_mode`보다 우선합니다. 새 요청에는 `run_mode`만 보내고, 수동 실행에서도 호환 필드는 비워둡니다.
+외부 호출과 웹 수동 실행 모두 GitHub에서는 `workflow_dispatch`로 표시됩니다.
 cron-job.org 요청 성공은 실행 요청 접수를 의미합니다. 실제 게시 성공은 Actions 실행 결과와 게시 로그에서 확인합니다.
 
 ```bash
@@ -128,6 +153,7 @@ npm run secrets:sync
 
 1. 저장소 → **Actions → Daily KMOU Story**.
 2. **Run workflow** → Branch `main`을 선택합니다.
+   `run_mode`에서 14개 개별 Story 또는 3개 batch를 선택합니다. 이전 cron 호환용 `story_mode`는 비워둡니다.
 3. 이미지 확인만 하려면 **이미지만 생성하고 게시하지 않기**를 체크합니다. 실제 게시하려면 해제합니다.
 4. **Run workflow**를 누릅니다.
 5. 실행 항목 → **publish** → 각 단계 로그를 확인합니다.
@@ -146,7 +172,7 @@ MacBook과 WebStorm이 꺼져 있어도 GitHub에서 실행됩니다.
 - 다른 오류와 네트워크 응답 유실은 자동 재게시하지 않습니다. 오류 시 해당 실행 로그와 runId 기록을 확인합니다. 새 실행을 시작하면 기존 성공/실패와 관계없이 다시 게시되며, 기존 기록을 지울 필요는 없습니다.
 - GitHub concurrency는 유지합니다. 짧은 시간에 여러 요청을 몰아서 보내는 용도로 사용하지 않습니다.
 - 모든 `npm run preview` 및 `preview_only=true` 실행은 이미지만 만들며 Storage 업로드와 Instagram 게시를 하지 않습니다.
-- 식단이 없으면 오늘/내일에 맞는 식단 없음 이미지를 게시합니다. 전체 식단 모드에서 한 끼만 없으면 해당 영역에 식단 없음을 표시합니다.
+- 평일 메뉴가 없으면 날짜·요일·식당명과 `메뉴 없음`을 게시합니다. 주말 기숙사도 동일하며 주말 학식은 skip합니다.
 
 Storage 업로드 권한 오류는 서버 키를, Instagram code 190은 토큰 만료/무효화를 먼저 확인합니다.
 토큰은 영구적이지 않습니다. Meta Developer 앱의 **Instagram → API setup with Instagram login → Generate access tokens**에서 필요한 경우 새 토큰을 만들고, `.env` 수정 → `npm run check-setup` → `npm run secrets:sync` 순서로 갱신합니다.
@@ -157,6 +183,10 @@ Storage 업로드 권한 오류는 서버 키를, Instagram code 190은 토큰 �
 ```text
 src/
   fetch-menu.ts          # 한국 날짜, 최신 dietSeq, 중식·석식 정리
+  fetch-coop-menu.ts     # 학식 POST HTML + Cheerio 파싱
+  story-modes.ts         # 14개 Story/3개 배치, 날짜와 주말 규칙
+  story-data.ts          # 식당별 메뉴 영역 구성
+  run-stories.ts         # 순차 실행, preview, 실패 후 계속 처리
   render-story.ts        # HTML → 1080×1920 JPEG
   config.ts              # .env 읽기, 설정 검증, 비밀값 로그 차단
   upload-supabase.ts     # 이미지 업로드·공개 URL 검증·게시 기록
@@ -166,6 +196,10 @@ src/
   check-setup.ts         # 게시 없이 설정 확인
   index.ts               # 식단 조회 CLI
 templates/story.html
+templates/shared.css
+templates/dormitory.css
+templates/snack.css
+templates/teacher.css
 assets/fonts/           # Noto Sans KR + OFL 라이선스
 scripts/sync-secrets.ts
 tests/

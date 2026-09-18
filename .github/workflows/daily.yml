@@ -1,18 +1,37 @@
 name: Daily KMOU Story
-run-name: Story · ${{ inputs.story_mode }}
+run-name: Story · ${{ inputs.story_mode || inputs.run_mode }}
 
 on:
   workflow_dispatch:
     inputs:
-      story_mode:
-        description: '생성할 Story 종류'
+      run_mode:
+        description: '개별 Story 또는 순차 게시 batch'
         type: choice
         required: true
         options:
-          - today_lunch
-          - today_dinner
-          - tomorrow_full
-        default: tomorrow_full
+          - today_lunch_batch
+          - today_dinner_batch
+          - tomorrow_full_batch
+          - today_dormitory_lunch
+          - today_dormitory_dinner
+          - today_dormitory_full
+          - tomorrow_dormitory_lunch
+          - tomorrow_dormitory_dinner
+          - tomorrow_dormitory_full
+          - today_snack
+          - tomorrow_snack
+          - today_teacher_lunch
+          - today_teacher_dinner
+          - today_teacher_full
+          - tomorrow_teacher_lunch
+          - tomorrow_teacher_dinner
+          - tomorrow_teacher_full
+        default: tomorrow_full_batch
+
+      story_mode:
+        description: '이전 cron-job.org 호환용 (수동 실행은 비워두세요)'
+        type: string
+        required: false
 
       preview_only:
         description: '이미지만 생성하고 게시하지 않기'
@@ -29,7 +48,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     env:
       TZ: Asia/Seoul
@@ -55,19 +74,11 @@ jobs:
         id: mode
         shell: bash
         env:
-          INPUT_MODE: ${{ inputs.story_mode }}
+          INPUT_MODE: ${{ inputs.run_mode }}
+          LEGACY_MODE: ${{ inputs.story_mode }}
         run: |
-          case "$INPUT_MODE" in
-            today_lunch|today_dinner|tomorrow_full)
-              mode="$INPUT_MODE"
-              ;;
-            *)
-              echo "::error::Invalid Story mode: $INPUT_MODE"
-              exit 1
-              ;;
-          esac
-
-          echo "story_mode=$mode" >> "$GITHUB_OUTPUT"
+          mode=$(node --import tsx scripts/resolve-workflow-mode.ts)
+          echo "run_mode=$mode" >> "$GITHUB_OUTPUT"
 
           {
             echo "### KMOU Story Run"
@@ -88,7 +99,7 @@ jobs:
       # 이미지 생성 또는 실제 Instagram Story 게시
       - name: Render or publish Story
         env:
-          STORY_MODE: ${{ steps.mode.outputs.story_mode }}
+          RUN_MODE: ${{ steps.mode.outputs.run_mode }}
           PREVIEW_ONLY: ${{ inputs.preview_only }}
 
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}

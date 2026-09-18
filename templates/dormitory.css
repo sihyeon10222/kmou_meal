@@ -1,0 +1,4 @@
+.dormitory .meal { position: absolute; left: 69px; right: 69px; }
+.dormitory .meal.lunch { top: 468px; height: 516px; }
+.dormitory .meal.dinner { top: 1112px; height: 540px; color: var(--paper); }
+.dormitory.lunch .meal, .dormitory.dinner .meal { top: 530px; height: 1050px; }

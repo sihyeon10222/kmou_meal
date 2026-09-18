@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { safeError } from './config.js';
-import type { StoryMode } from './render-story.js';
+import type { StoryMode } from './story-modes.js';
 import type { StoryStorage, PostRecord } from './upload-supabase.js';
 import type { InstagramPublisher } from './publish-instagram.js';
 
