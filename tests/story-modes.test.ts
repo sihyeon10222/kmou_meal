@@ -35,9 +35,5 @@ test('평일 공휴일도 skip하지 않는다; 주말 개별 학식도 skip한�
 });
 
 test('기존 cron 요청은 새 batch로 전환하고 새 개별 모드는 그대로 실행', () => {
-  assert.equal(resolveWorkflowMode(undefined, 'today_lunch'), 'today_lunch_batch');
-  assert.equal(resolveWorkflowMode('tomorrow_full_batch', 'today_dinner'), 'today_dinner_batch');
-  assert.equal(resolveWorkflowMode(undefined, 'tomorrow_full'), 'tomorrow_full_batch');
   assert.equal(resolveWorkflowMode('today_teacher_full'), 'today_teacher_full');
-  assert.throws(() => resolveWorkflowMode(undefined, 'bad'), /지원하지 않는/);
 });

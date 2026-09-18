@@ -28,14 +28,7 @@ export function parseRunMode(value: string): RunMode {
   return value as RunMode;
 }
 
-/** 전환 중 기존 cron 요청도 해당 시간대의 새 batch로 실행합니다. */
-export function resolveWorkflowMode(input?: string, legacy?: string): RunMode {
-  if (legacy) {
-    const aliases: Record<string, BatchMode> = { today_lunch: 'today_lunch_batch', today_dinner: 'today_dinner_batch', tomorrow_full: 'tomorrow_full_batch' };
-    const mode = Object.hasOwn(aliases, legacy) ? aliases[legacy] : undefined;
-    if (!mode) throw new Error(`지원하지 않는 이전 실행 모드: ${legacy}`);
-    return mode;
-  }
+export function resolveWorkflowMode(input?: string): RunMode {
   return parseRunMode(input || 'tomorrow_full_batch');
 }
 

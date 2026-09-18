@@ -1,5 +1,5 @@
 name: Daily KMOU Story
-run-name: Story · ${{ inputs.story_mode || inputs.run_mode }}
+run-name: Story · ${{ inputs.run_mode }}
 
 on:
   workflow_dispatch:
@@ -27,11 +27,6 @@ on:
           - tomorrow_teacher_dinner
           - tomorrow_teacher_full
         default: tomorrow_full_batch
-
-      story_mode:
-        description: '이전 cron-job.org 호환용 (수동 실행은 비워두세요)'
-        type: string
-        required: false
 
       base_date:
         description: '기준 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
@@ -80,7 +75,6 @@ jobs:
         shell: bash
         env:
           INPUT_MODE: ${{ inputs.run_mode }}
-          LEGACY_MODE: ${{ inputs.story_mode }}
         run: |
           mode=$(node --import tsx scripts/resolve-workflow-mode.ts)
           echo "run_mode=$mode" >> "$GITHUB_OUTPUT"
