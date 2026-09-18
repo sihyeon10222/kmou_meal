@@ -9,11 +9,11 @@
     body { font-family: Meal, sans-serif; color: #183d44; background: #f5f1e7; -webkit-font-smoothing: antialiased; }
     .story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
     .story.today-lunch { background: #f5f1e7; }
-    .story.today-dinner { background: #153b45; color: #f5f1e7; }
-    .night { position: absolute; top: 1038px; bottom: 0; left: 0; right: 0; background: #153b45; }
+    .story.today-dinner { background: #2259b1; color: #f5f1e7; }
+    .night { position: absolute; top: 1038px; bottom: 0; left: 0; right: 0; background: #2259b1; }
     .today-lunch .night { display: none; }
     .today-dinner .night { display: none; }
-    .today-dinner .school { color: #c2d2d0; }
+    .today-dinner .school { color: #f5f1e7; }
     .no-menu .lunch, .no-menu .dinner { display: none; }
     .empty-state { display: none; position: absolute; left: 69px; right: 69px; top: 650px; text-align: center; font-size: 54px; font-weight: 650; letter-spacing: -2px; }
     .no-menu .empty-state { display: block; }
@@ -21,10 +21,8 @@
     .eyebrow { font-size: 27px; font-weight: 650; letter-spacing: 4px; display: flex; align-items: center; gap: 21px; }
     .eyebrow::before { content: ''; display: block; width: 44px; height: 7px; background: #df713c; }
     .title-row { margin-top: 32px; }
-    h1 { font-size: 73px; font-weight: 770; letter-spacing: -5px; line-height: 1.15; white-space: nowrap; margin: 0; }
-    .date { position: absolute; right: -12px; top: 83px; text-align: right; font-size: 57px; font-weight: 720; line-height: 1; letter-spacing: -3px; }
-    .date small { display: block; font-size: 43px; font-weight: 650; letter-spacing: -2px; margin-top: 28px; }
-    .school { font-size: 30px; margin-top: 22px; letter-spacing: -1px; color: #3f6e72; }
+    h1 { font-size: 73px; font-weight: 770; letter-spacing: -5px; line-height: 1.15; white-space: nowrap; margin: 32px 0 0; }
+    .date, .school, .source-title { display: none; }
     section { position: absolute; left: 69px; right: 69px; }
     .lunch { top: 468px; height: 516px; }
     .dinner { top: 1112px; height: 540px; color: #f5f1e7; }
@@ -34,8 +32,8 @@
     .today-dinner .dinner { top: 530px; height: 900px; }
     .meal-heading { display: flex; align-items: center; border-bottom: 2px solid #183d4426; padding-bottom: 25px; gap: 24px; }
     .dinner .meal-heading { border-color: #f5f1e738; }
-    h2 { font-size: 51px; font-weight: 760; letter-spacing: -2px; line-height: 1; margin: 0; }
-    .english { font-size: 24px; font-weight: 600; letter-spacing: 4px; margin-left: auto; opacity: .78; }
+    h2 { font-size: 70px; font-weight: 760; letter-spacing: -2px; line-height: 1; margin: 0; }
+    .english { font-size: 0; }
     .symbol { width: 48px; height: 48px; display: inline-block; flex-shrink: 0; }
     .sun { border-radius: 50%; background: #df5e27; box-shadow: 0 0 0 7px #ed956450; width: 34px; height: 34px; margin: 7px; }
     .moon { border-radius: 50%; box-shadow: inset 14px -9px 0 0 #d0dfa6; transform: rotate(-15deg); }
@@ -53,15 +51,15 @@
     <div class="night"></div>
     <header>
       <div class="eyebrow">KMOU DAILY MENU</div>
-      <div class="title-row"><h1>{{TITLE}}</h1><div class="date">{{DATE}}<small>{{WEEKDAY}}</small></div></div>
+      <div class="title-row"><h1>{{DISPLAY_TITLE}}</h1><span class="source-title">{{TITLE}}</span><div class="date">{{DATE}}<small>{{WEEKDAY}}</small></div></div>
       <div class="school">국립한국해양대학교 학생생활관</div>
     </header>
     <section class="lunch" aria-label="점심 메뉴">
-      <div class="meal-heading"><span class="symbol sun"></span><h2>점심</h2><span class="english">LUNCH</span></div>
+      <div class="meal-heading"><span class="symbol sun"></span><h2>Lunch</h2><span class="english">LUNCH</span></div>
       <div class="menu">{{LUNCH}}</div>
     </section>
     <section class="dinner" aria-label="저녁 메뉴">
-      <div class="meal-heading"><span class="symbol moon"></span><h2>저녁</h2><span class="english">DINNER</span></div>
+      <div class="meal-heading"><span class="symbol moon"></span><h2>Dinner</h2><span class="english">DINNER</span></div>
       <div class="menu">{{DINNER}}</div>
     </section>
     <div class="empty-state">{{EMPTY_MESSAGE}}</div>
