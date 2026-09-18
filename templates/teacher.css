@@ -1,3 +1,4 @@
+.teacher.full { background: linear-gradient(to bottom, #fff 0 630px, var(--paper) 630px 100%); }
 .teacher .meal { position: absolute; left: 69px; right: 69px; }
 .teacher.full .breakfast { top: 450px; height: 165px; }
 .teacher.full .breakfast .meal-heading { flex-basis: 58px; padding-bottom: 12px; }
