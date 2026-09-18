@@ -2,7 +2,6 @@
 .teacher .meal { position: absolute; left: 69px; right: 69px; }
 .teacher.full .breakfast { top: 450px; height: 165px; }
 .teacher.full .breakfast .meal-heading { flex-basis: 58px; padding-bottom: 12px; }
-.teacher.full .breakfast h2 { font-size: 48px; }
 .teacher.full .breakfast .symbol { transform: scale(.7); }
 .teacher.full .breakfast .menu { padding-top: 12px; }
 .teacher.full .meal.lunch { top: 650px; height: 505px; }

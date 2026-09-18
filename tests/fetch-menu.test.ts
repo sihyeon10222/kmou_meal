@@ -46,3 +46,22 @@ test('일시적인 서버 오류는 재시도한다', async (t) => {
   assert.equal(await fetchDailyMenu('2026-09-16'), null);
   assert.equal(calls, 2);
 });
+
+test('잘못된 JSON은 통신 오류로 재시도하지 않는다', async t => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => new Response('<html>점검 중</html>'));
+  await assert.rejects(fetchDailyMenu('2026-09-18'), /응답 JSON/);
+  assert.equal(mock.mock.callCount(), 1);
+});
+
+test('기숙사 응답 본문 수신 실패는 재시도 후 복구한다', async t => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    if (calls === 1) {
+      return new Response(new ReadableStream({ start(controller) { controller.error(new Error('socket closed')); } }));
+    }
+    return Response.json([{ dietSeq: 1, dietDate: '2026/09/18', dietAditCn2: '밥' }]);
+  });
+  assert.deepEqual(await fetchDailyMenu('2026-09-18'), { date: '2026/09/18', lunch: ['밥'], dinner: [] });
+  assert.equal(calls, 2);
+});

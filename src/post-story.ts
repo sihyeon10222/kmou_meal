@@ -12,13 +12,23 @@ export async function postStory(
   saveReceipt: (record: PostRecord) => Promise<void>,
 ): Promise<PostRecord> {
   const runId = randomUUID();
+  const containerIds: string[] = [];
   const record: PostRecord = {
     runId, date, mode, status: 'posting', startedAt: new Date().toISOString(),
-    imagePath: `${date}/${mode}/${runId}.jpg`, containerIds: [],
+    imagePath: `${date}/${mode}/${runId}.jpg`, containerIds,
   };
   const persist = async () => {
-    await saveReceipt(record);
-    await storage.writeRecord(record);
+    const snapshot = structuredClone(record);
+    // 한 저장소의 실패가 다른 저장소에 게시 상태를 남기는 것까지 막지 않게 합니다.
+    const results = await Promise.allSettled([
+      Promise.resolve().then(() => saveReceipt(snapshot)),
+      Promise.resolve().then(() => storage.writeRecord(snapshot)),
+    ]);
+    const errors = results.flatMap(result => result.status === 'rejected' ? [result.reason as unknown] : []);
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, `게시 기록 저장 실패: ${errors.map(error => safeError(error)).join('; ')}`);
+    }
   };
   try {
     await persist();
@@ -26,7 +36,7 @@ export async function postStory(
     console.log(`Supabase 이미지 공개 URL 확인 완료: ${imageUrl}`);
     record.mediaId = await instagram.publishStory(imageUrl, async (id) => {
       record.containerId = id;
-      record.containerIds!.push(id);
+      containerIds.push(id);
       await persist();
     });
     record.status = 'published';
