@@ -5,10 +5,10 @@
 .teacher.full .breakfast h2 { font-size: 48px; }
 .teacher.full .breakfast .symbol { transform: scale(.7); }
 .teacher.full .breakfast .menu { padding-top: 12px; }
-.teacher.full .meal.lunch { top: 650px; height: 470px; }
-.teacher.full .meal.dinner { top: 1200px; height: 452px; color: var(--paper); }
-.teacher.full .night { top: 1150px; }
+.teacher.full .meal.lunch { top: 650px; height: 505px; }
+.teacher.full .meal.dinner { top: 1235px; height: 494px; color: var(--paper); }
+.teacher.full .night { top: 1185px; }
 .teacher.full h2 { font-size: 48px; }
 .teacher.full .meal-heading { flex-basis: 66px; padding-bottom: 13px; }
-.teacher.full .menu { font-size: 35px; line-height: 1.25; gap: 7px; padding-top: 16px; }
-.teacher.lunch .meal, .teacher.dinner .meal { top: 530px; height: 1050px; }
+.teacher.full .menu { font-size: 38px; line-height: 1.25; gap: 7px; padding-top: 16px; }
+.teacher.lunch .meal, .teacher.dinner .meal { top: 530px; height: 1199px; }
