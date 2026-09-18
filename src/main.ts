@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   if (preview) args.shift();
   if (args.length > 2) throw new Error('사용법: npm start -- <run_mode> [기준일 YYYY-MM-DD]');
   const mode = parseRunMode(args[0] || process.env.RUN_MODE || 'tomorrow_full_batch');
-  const baseDate = args[1] ?? seoulDate();
+  const baseDate = args[1] || process.env.BASE_DATE?.trim() || seoulDate();
   await mkdir('output', { recursive: true });
   // 미리보기·주말 skip에서는 게시 서비스를 초기화하지 않습니다.
   let services: Promise<{ storage: StoryStorage; instagram: InstagramPublisher }> | undefined;

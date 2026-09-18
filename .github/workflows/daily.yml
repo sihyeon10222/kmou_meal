@@ -33,6 +33,11 @@ on:
         type: string
         required: false
 
+      base_date:
+        description: '기준 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
+        type: string
+        required: false
+
       preview_only:
         description: '이미지만 생성하고 게시하지 않기'
         type: boolean
@@ -85,6 +90,7 @@ jobs:
             echo ""
             echo "- Event: ${{ github.event_name }}"
             echo "- Mode: $mode"
+            echo "- Base date: ${{ inputs.base_date || '한국시간 오늘' }}"
             echo "- Started (KST): $(date '+%Y-%m-%d %H:%M:%S %Z')"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -100,6 +106,7 @@ jobs:
       - name: Render or publish Story
         env:
           RUN_MODE: ${{ steps.mode.outputs.run_mode }}
+          BASE_DATE: ${{ inputs.base_date }}
           PREVIEW_ONLY: ${{ inputs.preview_only }}
 
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}

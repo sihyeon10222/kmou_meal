@@ -186,14 +186,15 @@ X-GitHub-Api-Version: 2022-11-28
 
 1. GitHub **Actions → Daily KMOU Story → Run workflow**를 엽니다.
 2. Branch `main`과 `run_mode`를 선택합니다. 이전 호환용 `story_mode`는 비워둡니다.
-3. 이미지 확인만 하려면 **이미지만 생성하고 게시하지 않기**를 체크합니다. 해제하면 실제 게시합니다.
-4. 실행 결과의 `publish` 작업 로그와 **Artifacts → story-실행번호**를 확인합니다. 이미지와 JSON 기록은 7일 보관됩니다.
+3. 특정 날짜를 실행하려면 **기준 날짜 YYYY-MM-DD**에 날짜를 입력합니다. 비워두면 한국시간 오늘을 기준으로 실행합니다. `tomorrow_` 모드는 입력한 기준 날짜의 다음 날을 처리합니다.
+4. 이미지 확인만 하려면 **이미지만 생성하고 게시하지 않기**를 체크합니다. 해제하면 실제 게시합니다.
+5. 실행 결과의 `publish` 작업 로그와 **Artifacts → story-실행번호**를 확인합니다. 이미지와 JSON 기록은 7일 보관됩니다.
 
 GitHub CLI에서도 게시 없이 실행할 수 있습니다.
 
 ```bash
 gh workflow run daily.yml --ref main \
-  -f run_mode=today_lunch_batch -f preview_only=true
+  -f run_mode=today_lunch_batch -f base_date=2026-09-18 -f preview_only=true
 
 gh run list --workflow daily.yml --limit 10
 ```
