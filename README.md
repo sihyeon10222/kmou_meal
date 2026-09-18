@@ -102,7 +102,7 @@ Public 버킷이므로 게시 기록도 URL을 아는 사람은 읽을 수 있�
 저장소: [sihyeon10222/kmou_meal](https://github.com/sihyeon10222/kmou_meal)
 
 GitHub 자체 `schedule`은 사용하지 않습니다. **cron-job.org → GitHub workflow_dispatch → 이미지 생성·게시**로 실행합니다.
-cron-job.org 자동 실행은 사용자 테스트로 동작 확인됐습니다. 시각·URL·인증 헤더를 유지하고 요청 본문만 아래 배치 형식으로 전환합니다.
+cron-job.org 자동 실행은 사용자 테스트로 동작 확인됐습니다. **2026-09-19에 기존 세 작업의 요청 본문을 아래 배치 형식으로 전환하고 저장값을 다시 확인했습니다.** 시각·URL·인증 헤더는 유지합니다.
 
 | 한국시간 (Asia/Seoul) | run_mode | 평일 대상 게시 순서 |
 | --- | --- | --- |
