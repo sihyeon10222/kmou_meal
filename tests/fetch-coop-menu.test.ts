@@ -42,5 +42,34 @@ test('잘못된 날짜/HTTP 오류/timeout은 빈 메뉴로 숨기지 않는다'
   assert.equal(mock.mock.callCount(), 0);
   await assert.rejects(fetchCoopDailyMenu('2026-09-18'), /HTTP 503/);
   mock.mock.mockImplementation(async () => { throw new DOMException('Timeout', 'TimeoutError'); });
-  await assert.rejects(fetchCoopDailyMenu('2026-09-18'), { name: 'TimeoutError' });
+  await assert.rejects(fetchCoopDailyMenu('2026-09-18'), /TimeoutError.*총 3회/);
+  assert.equal(mock.mock.callCount(), 6);
+});
+
+test('연결 오류와 본문 수신 실패 후 재조회로 복구한다', async t => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    if (calls === 1) throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+    if (calls === 2) return new Response(new ReadableStream({ start(controller) { controller.error(new Error('socket closed')); } }));
+    return new Response(coopHtml);
+  });
+  assert.equal((await fetchCoopDailyMenu('2026-09-18')).staffRestaurant.dinner.length, 7);
+  assert.equal(calls, 3);
+});
+
+test('일시 HTTP 오류는 복구하고 영구 HTTP/파싱 오류는 재시도하지 않는다', async t => {
+  let calls = 0;
+  const mock = t.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    return calls < 3 ? new Response('', { status: calls === 1 ? 429 : 503 }) : new Response(coopHtml);
+  });
+  await fetchCoopDailyMenu('2026-09-18');
+  assert.equal(mock.mock.callCount(), 3);
+  mock.mock.mockImplementation(async () => new Response('', { status: 403 }));
+  await assert.rejects(fetchCoopDailyMenu('2026-09-18'), /HTTP 403.*1회/);
+  assert.equal(mock.mock.callCount(), 4);
+  mock.mock.mockImplementation(async () => new Response('<html>변경된 표</html>'));
+  await assert.rejects(fetchCoopDailyMenu('2026-09-18'), /구조 오류/);
+  assert.equal(mock.mock.callCount(), 5);
 });
