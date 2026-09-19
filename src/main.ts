@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { loadConfig, safeError } from './config.js';
-import { fetchDailyMenu, seoulDate } from './fetch-menu.js';
+import { fetchDailyMenu, seoulDate, validateDate } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
 import { renderStory } from './render-story.js';
 import { parseRunMode } from './story-modes.js';
@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   if (preview) args.shift();
   if (args.length > 2) throw new Error('사용법: npm start -- <run_mode> [기준일 YYYY-MM-DD]');
   const mode = parseRunMode(args[0] || process.env.RUN_MODE || 'tomorrow_full_batch');
-  const baseDate = args[1] || process.env.BASE_DATE?.trim() || seoulDate();
+  const baseDate = validateDate(args[1] || process.env.BASE_DATE?.trim() || seoulDate());
   await mkdir('output', { recursive: true });
   // 미리보기·주말 skip에서는 게시 서비스를 초기화하지 않습니다.
   let services: Promise<{ storage: StoryStorage; instagram: InstagramPublisher }> | undefined;

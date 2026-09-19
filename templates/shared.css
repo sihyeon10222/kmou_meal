@@ -20,6 +20,7 @@ h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px;
 .night { position: absolute; inset: 1038px 0 0; background: var(--blue); }
 .dinner .meal-heading { border-color: #f5f1e738; }
 .story.dinner { background: var(--blue); color: var(--paper); }
-.story.dinner .night, .story.lunch .night { display: none; }
+.story.dinner .night, .story.lunch .night, .story.breakfast .night { display: none; }
+.story.breakfast { background: #fff; }
 footer { position: absolute; left: 69px; right: 69px; bottom: 0; color: var(--paper); border-top: 1px solid #f5f1e780; padding: 50px 0; display: flex; justify-content: space-between; font-size: 29px; line-height: 40px; font-weight: 450; letter-spacing: -.5px; }
-.story.lunch footer { color: var(--ink); border-color: #183d4440; }
+.story.lunch footer, .story.breakfast footer { color: var(--ink); border-color: #183d4440; }

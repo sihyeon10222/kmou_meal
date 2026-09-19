@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { STORY_MODES, parseRunMode, resolveStoryRequest, resolveRun, resolveWorkflowMode } from '../src/story-modes.js';
+import { STORY_MODES, BATCH_MODES, parseRunMode, resolveStoryRequest, resolveRun, resolveWorkflowMode, resolveBatchMode, resolveManualStoryMode } from '../src/story-modes.js';
 
-test('14개 Story mode의 날짜/식당/끼니가 정확하다', () => {
-  assert.equal(STORY_MODES.length, 14);
+test('18개 Story mode의 날짜/식당/끼니가 정확하다', () => {
+  assert.equal(STORY_MODES.length, 18);
   for (const mode of STORY_MODES) {
     const r = resolveStoryRequest(mode, '2026-09-17');
     assert.equal(r.targetDate, mode.startsWith('tomorrow') ? '2026-09-18' : '2026-09-17');
     assert.equal(r.restaurant, mode.includes('dormitory') ? 'dormitory' : mode.includes('teacher') ? 'teacher' : 'snack');
-    assert.equal(r.scope, mode.endsWith('lunch') ? 'lunch' : mode.endsWith('dinner') ? 'dinner' : 'full');
+    assert.equal(r.scope, mode.endsWith('breakfast') ? 'breakfast' : mode.endsWith('lunch') ? 'lunch' : mode.endsWith('dinner') ? 'dinner' : 'full');
     assert.equal(r.skip, false);
   }
   assert.equal(resolveStoryRequest('tomorrow_snack', '2026-12-31').targetDate, '2027-01-01');
@@ -34,6 +34,33 @@ test('평일 공휴일도 skip하지 않는다; 주말 개별 학식도 skip한�
   assert.equal(resolveStoryRequest('today_snack', '2026-09-20').skip, true);
 });
 
-test('기존 cron 요청은 새 batch로 전환하고 새 개별 모드는 그대로 실행', () => {
+test('기본 모드와 개별 모드 해석', () => {
   assert.equal(resolveWorkflowMode('today_teacher_full'), 'today_teacher_full');
+  assert.equal(resolveWorkflowMode(), 'tomorrow_full_batch');
+});
+
+test('Manual 선택의 모든 조합은 18개 모드로 해석하고 Batch는 세 모드만 허용한다', () => {
+  const modes = new Set<string>();
+  for (const day of ['today', 'tomorrow']) {
+    for (const restaurant of ['dormitory', 'snack', 'teacher']) {
+      for (const meal of ['breakfast', 'lunch', 'dinner', 'full']) {
+        const mode = resolveManualStoryMode(day, restaurant, meal);
+        assert.equal(mode, restaurant === 'snack' ? `${day}_snack` : `${day}_${restaurant}_${meal}`);
+        modes.add(mode);
+      }
+    }
+  }
+  assert.deepEqual([...modes].sort(), [...STORY_MODES].sort());
+  for (const mode of BATCH_MODES) assert.equal(resolveBatchMode(mode), mode);
+  for (const mode of STORY_MODES) assert.throws(() => resolveBatchMode(mode), /배치/);
+  assert.throws(() => resolveManualStoryMode('yesterday', 'dormitory', 'full'));
+  assert.throws(() => resolveManualStoryMode('today', 'other', 'full'));
+  assert.throws(() => resolveManualStoryMode('today', 'snack', 'other'));
+});
+
+test('조식도 대상일 주말/공휴일 규칙을 따른다', () => {
+  assert.equal(resolveStoryRequest('tomorrow_teacher_breakfast', '2026-09-18').skip, true);
+  assert.equal(resolveStoryRequest('tomorrow_dormitory_breakfast', '2026-09-18').skip, false);
+  assert.equal(resolveStoryRequest('tomorrow_teacher_breakfast', '2026-09-20').skip, false);
+  assert.equal(resolveStoryRequest('today_teacher_breakfast', '2026-12-25').skip, false);
 });

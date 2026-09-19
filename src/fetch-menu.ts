@@ -7,6 +7,7 @@ const MENU_API = 'https://www.kmou.ac.kr/dorm/di/diet/selectDietList.do';
 
 export interface DailyMenu {
   date: string;
+  breakfast: string[];
   lunch: string[];
   dinner: string[];
 }
@@ -14,6 +15,7 @@ export interface DailyMenu {
 interface RawDiet {
   dietSeq: number;
   dietDate: string;
+  dietAditCn1?: string | null;
   dietAditCn2?: string | null;
   dietAditCn3?: string | null;
 }
@@ -23,7 +25,7 @@ function isRawDiet(value: unknown): value is RawDiet {
   const row = value as Record<string, unknown>;
   return typeof row.dietSeq === 'number' && Number.isSafeInteger(row.dietSeq)
     && typeof row.dietDate === 'string'
-    && [row.dietAditCn2, row.dietAditCn3].every(
+    && [row.dietAditCn1, row.dietAditCn2, row.dietAditCn3].every(
       (menu) => menu == null || typeof menu === 'string',
     );
 }
@@ -57,5 +59,10 @@ export async function fetchDailyMenu(date: Date | string = new Date()): Promise<
   const candidates = data.filter((item) => item.dietDate === targetDate);
   if (candidates.length === 0) return null;
   const latest = candidates.reduce((a, b) => b.dietSeq > a.dietSeq ? b : a);
-  return { date: latest.dietDate, lunch: cleanMenu(latest.dietAditCn2), dinner: cleanMenu(latest.dietAditCn3) };
+  return {
+    date: latest.dietDate,
+    breakfast: cleanMenu(latest.dietAditCn1),
+    lunch: cleanMenu(latest.dietAditCn2),
+    dinner: cleanMenu(latest.dietAditCn3),
+  };
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fetchDailyMenu, seoulDate } from '../src/fetch-menu.js';
 
-test('UTC 날짜가 전날이어도 한국 날짜로 요청하고 최신 중식/석식만 반환한다', async (t) => {
+test('UTC 날짜가 전날이어도 한국 날짜로 요청하고 최신 조식/중식/석식을 반환한다', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
     assert.equal(options.method, 'POST');
     assert.equal((options.body as URLSearchParams).get('sch_date'), '2026-09-16');
@@ -14,7 +14,7 @@ test('UTC 날짜가 전날이어도 한국 날짜로 요청하고 최신 중식/
   });
   assert.equal(seoulDate(new Date('2026-09-15T15:00:00Z')), '2026-09-16');
   assert.deepEqual(await fetchDailyMenu(new Date('2026-09-15T22:10:00Z')), {
-    date: '2026/09/16', lunch: ['최신 중식', '밥'], dinner: ['국', '김치'],
+    date: '2026/09/16', breakfast: ['조식'], lunch: ['최신 중식', '밥'], dinner: ['국', '김치'],
   });
 });
 
@@ -24,7 +24,7 @@ test('식단 없음과 비어 있는 끼니를 구분한다', async (t) => {
   mock.mock.mockImplementation(async () => Response.json([
     { dietSeq: 1, dietDate: '2026/09/16', dietAditCn2: null },
   ]));
-  assert.deepEqual(await fetchDailyMenu('2026-09-16'), { date: '2026/09/16', lunch: [], dinner: [] });
+  assert.deepEqual(await fetchDailyMenu('2026-09-16'), { date: '2026/09/16', breakfast: [], lunch: [], dinner: [] });
 });
 
 test('잘못된 날짜, 응답 구조와 HTTP 실패는 정상 skip으로 숨기지 않는다', async (t) => {
@@ -62,6 +62,17 @@ test('기숙사 응답 본문 수신 실패는 재시도 후 복구한다', asyn
     }
     return Response.json([{ dietSeq: 1, dietDate: '2026/09/18', dietAditCn2: '밥' }]);
   });
-  assert.deepEqual(await fetchDailyMenu('2026-09-18'), { date: '2026/09/18', lunch: ['밥'], dinner: [] });
+  assert.deepEqual(await fetchDailyMenu('2026-09-18'), { date: '2026/09/18', breakfast: [], lunch: ['밥'], dinner: [] });
   assert.equal(calls, 2);
+});
+
+test('조식 줄바꿈 정리와 잘못된 조식 응답 검증', async t => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => Response.json([
+    { dietSeq: 1, dietDate: '2026/09/18', dietAditCn1: ' 밥\r\n국\n \n김치 ' },
+  ]));
+  assert.deepEqual((await fetchDailyMenu('2026-09-18'))?.breakfast, ['밥', '국', '김치']);
+  mock.mock.mockImplementation(async () => Response.json([
+    { dietSeq: 1, dietDate: '2026/09/18', dietAditCn1: 123 },
+  ]));
+  await assert.rejects(fetchDailyMenu('2026-09-18'), /응답 구조/);
 });

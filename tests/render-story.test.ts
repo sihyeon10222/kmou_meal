@@ -11,7 +11,7 @@ import { coopMenu, emptyCoop } from './fixtures.js';
 
 test('메뉴 HTML escape, 공통 헤더/푸터, 부분 empty 영역 유지', async () => {
   const data = dormitoryStory(resolveStoryRequest('today_dormitory_full', '2026-09-18'), {
-    date: '2026/09/18', lunch: ['<script>alert(1)</script>', '밥&김치'], dinner: [],
+    date: '2026/09/18', breakfast: [], lunch: ['<script>alert(1)</script>', '밥&김치'], dinner: [],
   });
   const html = await storyHtml(data);
   const $ = load(html);
@@ -22,13 +22,17 @@ test('메뉴 HTML escape, 공통 헤더/푸터, 부분 empty 영역 유지', asy
   assert.match($('footer').text(), /@kmou_meal.*김시현/);
 });
 
-test('14개 모드의 실제 DOM은 요청한 영역만 포함한다', async () => {
+test('18개 모드의 실제 DOM은 요청한 영역만 포함하고 영어 끼니를 유지한다', async () => {
   for (const mode of STORY_MODES) {
     const request = resolveStoryRequest(mode, '2026-09-17');
     const data = request.restaurant === 'dormitory' ? dormitoryStory(request, null) : coopStory(request, coopMenu);
     const $ = load(await storyHtml(data));
-    assert.equal($('.meal').length, request.restaurant === 'snack' ? 4 : request.scope !== 'full' ? 1 : request.restaurant === 'teacher' ? 3 : 2);
-    assert.equal($('.breakfast').length, request.restaurant === 'teacher' && request.scope === 'full' ? 1 : 0);
+    assert.equal($('.meal').length, request.restaurant === 'snack' ? 4 : request.scope !== 'full' ? 1 : 3);
+    assert.equal($('.meal.breakfast').length, request.restaurant !== 'snack' && ['full', 'breakfast'].includes(request.scope) ? 1 : 0);
+    if (request.restaurant !== 'snack') {
+      const labels = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', full: 'Breakfast|Lunch|Dinner' };
+      assert.equal($('h2').map((_, el) => $(el).text()).get().join('|'), labels[request.scope]);
+    }
     assert.ok($('h1').text().includes(request.title));
   }
 });
@@ -50,10 +54,10 @@ test('스낵/교직원 전체 및 부분 누락은 영역을 유지한다', asyn
 test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'kmou-render-'));
   try {
-    for (const mode of ['today_snack', 'today_teacher_full', 'today_dormitory_full'] as const) {
+    for (const mode of ['today_snack', 'today_teacher_full', 'today_dormitory_full', 'today_dormitory_breakfast', 'today_teacher_breakfast'] as const) {
       const request = resolveStoryRequest(mode, '2026-09-18');
       const data = request.restaurant === 'dormitory'
-        ? dormitoryStory(request, { date: '2026/09/18', lunch: Array(8).fill('점심 메뉴'), dinner: Array(8).fill('저녁 메뉴') })
+        ? dormitoryStory(request, { date: '2026/09/18', breakfast: Array(5).fill('아침 메뉴'), lunch: Array(8).fill('점심 메뉴'), dinner: Array(8).fill('저녁 메뉴') })
         : coopStory(request, coopMenu);
       const file = await renderStory(data, directory);
       assert.deepEqual([...(await readFile(file)).subarray(0, 2)], [0xff, 0xd8]);

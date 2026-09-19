@@ -35,6 +35,8 @@ npm run preview -- today_lunch_batch
 npm run preview -- today_snack
 npm run preview -- today_teacher_full
 npm run preview -- today_dormitory_full
+npm run preview -- today_dormitory_breakfast
+npm run preview -- today_teacher_breakfast
 ```
 
 Linux에서 Chromium 시스템 라이브러리 설치가 필요하면 `npx playwright install --with-deps chromium`을 사용합니다.
@@ -80,14 +82,16 @@ npm start
 | `today_dinner_batch` | 오늘 기숙사 저녁 → 교직원 저녁 |
 | `tomorrow_full_batch` | 내일 기숙사 전체 → 스낵 → 교직원 전체 |
 
-### 개별 Story 모드 14개
+### 개별 Story 모드 18개
 
 | 식당 / 구성 | 오늘 | 내일 |
 | --- | --- | --- |
+| 기숙사 아침 | `today_dormitory_breakfast` | `tomorrow_dormitory_breakfast` |
 | 기숙사 점심 | `today_dormitory_lunch` | `tomorrow_dormitory_lunch` |
 | 기숙사 저녁 | `today_dormitory_dinner` | `tomorrow_dormitory_dinner` |
-| 기숙사 전체: 점심 + 저녁 | `today_dormitory_full` | `tomorrow_dormitory_full` |
+| 기숙사 전체: 아침 + 점심 + 저녁 | `today_dormitory_full` | `tomorrow_dormitory_full` |
 | 스낵: 양식·정식·라면·분식 한 장 | `today_snack` | `tomorrow_snack` |
+| 교직원 아침 | `today_teacher_breakfast` | `tomorrow_teacher_breakfast` |
 | 교직원 점심 | `today_teacher_lunch` | `tomorrow_teacher_lunch` |
 | 교직원 저녁 | `today_teacher_dinner` | `tomorrow_teacher_dinner` |
 | 교직원 전체: 아침 + 점심 + 저녁 | `today_teacher_full` | `tomorrow_teacher_full` |
@@ -133,6 +137,8 @@ npm start -- today_dormitory_lunch
 ## 자동화: cron-job.org + GitHub Actions
 
 GitHub 자체 `schedule` 대신 cron-job.org가 GitHub의 `workflow_dispatch` API를 호출합니다. 로컬 PC나 WebStorm이 꺼져 있어도 실행됩니다.
+
+**Daily KMOU Batch**는 기존 `daily.yml` 주소와 `run_mode` 입력을 유지합니다. 기존 cron-job.org 요청 URL·본문·예약 시각은 변경할 필요가 없습니다. 22:00 배치의 기숙사 full은 이제 아침·점심·저녁을 모두 포함합니다. 아침 단독 모드는 수동 실행용이며 자동 아침 배치는 추가하지 않습니다.
 
 | 예약 시각 (Asia/Seoul) | `run_mode` |
 | --- | --- |
@@ -184,10 +190,10 @@ X-GitHub-Api-Version: 2022-11-28
 
 ### 수동 실행과 결과 확인
 
-1. GitHub **Actions → Daily KMOU Story → Run workflow**를 엽니다.
-2. Branch `main`과 `run_mode`를 선택합니다.
+1. 여러 식당을 실행하려면 **Actions → Daily KMOU Batch → Run workflow**에서 `run_mode`로 세 배치 중 하나를 선택합니다.
+2. 한 장만 실행하려면 **Actions → Manual KMOU Story → Run workflow**에서 `day`(today/tomorrow), `restaurant`(dormitory/snack/teacher), `meal`(breakfast/lunch/dinner/full)을 선택합니다. Snack은 끼니 선택에 관계없이 네 코너를 한 장으로 생성합니다. Branch는 `main`입니다.
 3. 특정 날짜를 실행하려면 **기준 날짜 YYYY-MM-DD**에 날짜를 입력합니다. 비워두면 한국시간 오늘을 기준으로 실행합니다. `tomorrow_` 모드는 입력한 기준 날짜의 다음 날을 처리합니다.
-4. 이미지 확인만 하려면 **이미지만 생성하고 게시하지 않기**를 체크합니다. 해제하면 실제 게시합니다.
+4. 이미지 확인만 하려면 **이미지만 생성하고 게시하지 않기**를 체크합니다. 해제하면 실제 게시합니다. Manual은 기본 체크, Batch는 기존 자동화와 동일하게 기본 해제입니다.
 5. 실행 결과의 `publish` 작업 로그와 **Artifacts → story-실행번호**를 확인합니다. 이미지와 JSON 기록은 7일 보관됩니다.
 
 GitHub CLI에서도 게시 없이 실행할 수 있습니다.
@@ -195,6 +201,10 @@ GitHub CLI에서도 게시 없이 실행할 수 있습니다.
 ```bash
 gh workflow run daily.yml --ref main \
   -f run_mode=today_lunch_batch -f base_date=2026-09-18 -f preview_only=true
+
+gh workflow run manual-story.yml --ref main \
+  -f day=today -f restaurant=dormitory -f meal=breakfast \
+  -f base_date=2026-09-18 -f preview_only=true
 
 gh run list --workflow daily.yml --limit 10
 ```
@@ -242,7 +252,7 @@ output/                  # 생성 결과 (Git 제외)
 
 | 파일 | 구성 |
 | --- | --- |
-| `templates/dormitory.css` | 점심 크림색, 저녁 파란색 |
+| `templates/dormitory.css` | 전체 식단: 헤더·아침 흰색, 점심 크림색, 저녁 파란색. 세 끼 메뉴량에 맞춘 3단 구성 |
 | `templates/snack.css` | 전체 크림색, 양식·정식은 크게 / 라면·분식은 작게 |
 | `templates/teacher.css` | 전체 식단: 헤더·아침 흰색, 점심 크림색, 저녁 파란색 |
 

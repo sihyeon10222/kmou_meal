@@ -10,4 +10,4 @@
 .teacher.full h2 { font-size: 48px; }
 .teacher.full .meal-heading { flex-basis: 66px; padding-bottom: 13px; }
 .teacher.full .menu { font-size: 38px; line-height: 1.25; gap: 7px; padding-top: 16px; }
-.teacher.lunch .meal, .teacher.dinner .meal { top: 530px; height: 1199px; }
+.teacher.breakfast .meal, .teacher.lunch .meal, .teacher.dinner .meal { top: 530px; height: 1199px; }

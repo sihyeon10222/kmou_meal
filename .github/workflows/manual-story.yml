@@ -1,32 +1,40 @@
-name: Daily KMOU Batch
-run-name: Batch · ${{ inputs.run_mode }}
+name: Manual KMOU Story
+run-name: Story · ${{ inputs.day }} · ${{ inputs.restaurant }} · ${{ inputs.meal }}
 
 on:
   workflow_dispatch:
     inputs:
-      run_mode:
-        description: '자동화 / 수동 순차 게시 batch'
+      day:
+        description: '날짜 (today: 기준일 / tomorrow: 기준일 다음 날)'
         type: choice
         required: true
-        options:
-          - today_lunch_batch
-          - today_dinner_batch
-          - tomorrow_full_batch
-        default: tomorrow_full_batch
-
+        options: [today, tomorrow]
+        default: today
+      restaurant:
+        description: '식당 (dormitory: 기숙사 / snack: 학식 / teacher: 교직원)'
+        type: choice
+        required: true
+        options: [dormitory, snack, teacher]
+        default: dormitory
+      meal:
+        description: '끼니 (snack은 선택과 관계없이 네 코너 한 장)'
+        type: choice
+        required: true
+        options: [breakfast, lunch, dinner, full]
+        default: full
       base_date:
         description: '기준 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
         type: string
         required: false
-
       preview_only:
         description: '이미지만 생성하고 게시하지 않기'
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
 
+# Both workflows share a publication queue for the same Instagram account.
 concurrency:
   group: kmou-instagram-story
   cancel-in-progress: false
@@ -35,78 +43,58 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     env:
       TZ: Asia/Seoul
-
     steps:
-      # 저장소 코드 가져오기
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      # Node.js 설정
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
-
-      # npm 패키지 설치
       - name: Install dependencies
         run: npm ci
-
-      # cron-job.org 또는 수동 실행에서 전달된 Story mode 확인
       - name: Determine story mode
         id: mode
         shell: bash
         env:
-          INPUT_KIND: batch
-          INPUT_MODE: ${{ inputs.run_mode }}
+          INPUT_KIND: manual
+          INPUT_DAY: ${{ inputs.day }}
+          INPUT_RESTAURANT: ${{ inputs.restaurant }}
+          INPUT_MEAL: ${{ inputs.meal }}
           INPUT_BASE_DATE: ${{ inputs.base_date }}
         run: |
           mode=$(node --import tsx scripts/resolve-workflow-mode.ts)
           echo "run_mode=$mode" >> "$GITHUB_OUTPUT"
-
           {
             echo "### KMOU Story Run"
             echo ""
-            echo "- Event: ${{ github.event_name }}"
             echo "- Mode: $mode"
             echo "- Base date: ${INPUT_BASE_DATE:-한국시간 오늘}"
             echo "- Started (KST): $(date '+%Y-%m-%d %H:%M:%S %Z')"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      # Playwright용 Chromium 설치
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-
-      # 타입 검사 + 테스트 + 빌드
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
-
-      # 이미지 생성 또는 실제 Instagram Story 게시
       - name: Render or publish Story
         env:
           RUN_MODE: ${{ steps.mode.outputs.run_mode }}
           BASE_DATE: ${{ inputs.base_date }}
           PREVIEW_ONLY: ${{ inputs.preview_only }}
-
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
-
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-
         run: |
           if [ "$PREVIEW_ONLY" = "true" ]; then
             npm run preview
           else
             npm start
           fi
-
-      # 생성 이미지와 게시 결과를 GitHub Artifact로 7일간 저장
       - name: Save rendered image and posting receipt
         if: always()
         uses: actions/upload-artifact@v7

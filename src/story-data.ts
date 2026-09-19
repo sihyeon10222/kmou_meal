@@ -7,6 +7,7 @@ export interface StoryRenderData { request: StoryRequest; sections: MenuSection[
 
 export function dormitoryStory(request: StoryRequest, menu: DailyMenu | null): StoryRenderData {
   return { request, sections: [
+    { key: 'breakfast', label: 'Breakfast', items: menu?.breakfast ?? [] },
     { key: 'lunch', label: 'Lunch', items: menu?.lunch ?? [] },
     { key: 'dinner', label: 'Dinner', items: menu?.dinner ?? [] },
   ].filter(section => request.scope === 'full' || section.key === request.scope) };

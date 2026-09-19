@@ -1,9 +1,11 @@
-import { seoulDate, validateDate } from './fetch-menu.js';
+import { seoulDate, validateDate } from './dates.js';
 
 export const STORY_MODES = [
+  'today_dormitory_breakfast', 'tomorrow_dormitory_breakfast',
   'today_dormitory_lunch', 'today_dormitory_dinner', 'today_dormitory_full',
   'tomorrow_dormitory_lunch', 'tomorrow_dormitory_dinner', 'tomorrow_dormitory_full',
   'today_snack', 'tomorrow_snack',
+  'today_teacher_breakfast', 'tomorrow_teacher_breakfast',
   'today_teacher_lunch', 'today_teacher_dinner', 'today_teacher_full',
   'tomorrow_teacher_lunch', 'tomorrow_teacher_dinner', 'tomorrow_teacher_full',
 ] as const;
@@ -12,7 +14,7 @@ export const BATCH_MODES = ['today_lunch_batch', 'today_dinner_batch', 'tomorrow
 export type BatchMode = typeof BATCH_MODES[number];
 export type RunMode = StoryMode | BatchMode;
 export type Restaurant = 'dormitory' | 'snack' | 'teacher';
-export type MealScope = 'lunch' | 'dinner' | 'full';
+export type MealScope = 'breakfast' | 'lunch' | 'dinner' | 'full';
 export interface StoryRequest {
   mode: StoryMode;
   targetDate: string;
@@ -30,6 +32,23 @@ export function parseRunMode(value: string): RunMode {
 
 export function resolveWorkflowMode(input?: string): RunMode {
   return parseRunMode(input || 'tomorrow_full_batch');
+}
+
+export function resolveBatchMode(input = 'tomorrow_full_batch'): BatchMode {
+  const mode = BATCH_MODES.find(mode => mode === input);
+  if (!mode) throw new Error(`지원하지 않는 배치 모드: ${input}`);
+  return mode;
+}
+
+/** Snack has no meal-specific Stories; every valid meal selection resolves to one Story. */
+export function resolveManualStoryMode(day: string, restaurant: string, meal: string): StoryMode {
+  if (day !== 'today' && day !== 'tomorrow') throw new Error('날짜 선택은 today 또는 tomorrow여야 합니다.');
+  if (restaurant !== 'dormitory' && restaurant !== 'snack' && restaurant !== 'teacher') throw new Error('지원하지 않는 식당입니다.');
+  if (!['breakfast', 'lunch', 'dinner', 'full'].includes(meal)) throw new Error('지원하지 않는 끼니입니다.');
+  const value = restaurant === 'snack' ? `${day}_snack` : `${day}_${restaurant}_${meal}`;
+  const mode = STORY_MODES.find(mode => mode === value);
+  if (!mode) throw new Error(`지원하지 않는 Story 모드: ${value}`);
+  return mode;
 }
 
 export function isWeekend(date: string): boolean {
@@ -57,6 +76,6 @@ const batches: Record<BatchMode, readonly StoryMode[]> = {
 };
 
 export function resolveRun(mode: RunMode, baseDate = seoulDate()): StoryRequest[] {
-  const modes = mode in batches ? batches[mode as BatchMode] : [mode as StoryMode];
+  const modes = Object.hasOwn(batches, mode) ? batches[mode as BatchMode] : [mode as StoryMode];
   return modes.map(story => resolveStoryRequest(story, baseDate));
 }

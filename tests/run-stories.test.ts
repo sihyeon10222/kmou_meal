@@ -30,7 +30,7 @@ test('preview는 평일 empty도 렌더하며 publish를 호출하지 않는다'
     render: async data => { sections.push(data.sections.length); assert.ok(data.sections.every(s => !s.items.length)); return 'image.jpg'; },
     publish: async () => { assert.fail('미리보기 게시 금지'); },
   });
-  assert.deepEqual(sections, [2, 4, 3]);
+  assert.deepEqual(sections, [3, 4, 3]);
   assert.ok(results.every(r => r.status === 'preview'));
 });
 
