@@ -50,8 +50,9 @@ export function escapeHtml(value: string): string {
 
 function sectionHtml(section: MenuSection): string {
   const symbol = section.key === 'dinner' ? 'moon' : 'sun';
+  const dishHtml = (item: string) => escapeHtml(item).replace(/([+*])/g, '<wbr>$1');
   const items = section.items.length
-    ? section.items.map(item => `<p class="dish">${escapeHtml(item)}</p>`).join('')
+    ? section.items.map(item => `<p class="dish">${dishHtml(item)}</p>`).join('')
     : '<p class="dish empty">메뉴 없음</p>';
   return `<section class="meal ${escapeHtml(section.key)}" aria-label="${escapeHtml(section.label)}"><div class="meal-heading"><span class="symbol ${symbol}"></span><h2>${escapeHtml(section.label)}</h2></div><div class="menu">${items}</div></section>`;
 }

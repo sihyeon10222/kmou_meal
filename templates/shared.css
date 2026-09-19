@@ -15,8 +15,7 @@ h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px;
 .sun { border-radius: 50%; background: #df5e27; box-shadow: 0 0 0 7px #ed956450; width: 34px; height: 34px; margin: 7px; }
 .moon { border-radius: 50%; box-shadow: inset 14px -9px 0 0 var(--moon); transform: rotate(-15deg); }
 .menu { flex: 1; min-height: 0; padding-top: 28px; display: flex; flex-direction: column; gap: 15px; font-size: 60px; font-weight: 560; line-height: 1.3; letter-spacing: -1.8px; }
-.dish { margin: 0; flex-shrink: 0; overflow-wrap: anywhere; }
-.dish:first-child { font-weight: 760; }
+.dish { margin: 0; flex-shrink: 0; overflow-wrap: normal; word-break: keep-all; }
 .empty { opacity: .75; font-weight: 450 !important; }
 .night { position: absolute; inset: var(--night-start, 1038px) 0 0; background: var(--blue); }
 .dinner .meal-heading { border-color: #f5f1e738; }
