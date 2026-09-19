@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { load } from 'cheerio';
-import { renderStory, storyHtml } from '../src/render-story.js';
+import { createStoryRenderer, storyHtml } from '../src/render-story.js';
 import { coopStory, dormitoryStory } from '../src/story-data.js';
 import { STORY_MODES, resolveStoryRequest } from '../src/story-modes.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
@@ -53,20 +53,49 @@ test('스낵/교직원 전체 및 부분 누락은 영역을 유지한다', asyn
 
 test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'kmou-render-'));
+  const renderer = createStoryRenderer();
   try {
     for (const mode of ['today_snack', 'today_teacher_full', 'today_dormitory_full', 'today_dormitory_breakfast', 'today_teacher_breakfast'] as const) {
       const request = resolveStoryRequest(mode, '2026-09-18');
       const data = request.restaurant === 'dormitory'
-        ? dormitoryStory(request, { date: '2026/09/18', breakfast: Array(5).fill('아침 메뉴'), lunch: Array(8).fill('점심 메뉴'), dinner: Array(8).fill('저녁 메뉴') })
+        ? dormitoryStory(request, { date: '2026/09/18', breakfast: ['아침 메뉴'], lunch: Array(8).fill('점심 메뉴'), dinner: Array(5).fill('저녁 메뉴') })
         : coopStory(request, coopMenu);
-      const file = await renderStory(data, directory);
+      const file = await renderer.render(data, directory);
       assert.deepEqual([...(await readFile(file)).subarray(0, 2)], [0xff, 0xd8]);
       const html = load(await readFile(file.replace('.jpg', '.html'), 'utf8'));
       assert.equal(html('.dish').length, data.sections.reduce((sum, s) => sum + Math.max(s.items.length, 1), 0));
       assert.ok(html('.dish').toArray().every((node, index) => html(node).text() === data.sections.flatMap(s => s.items.length ? s.items : ['메뉴 없음'])[index]));
+      const numberFromStyle = (selector: string, property: string) => {
+        const match = html(selector).attr('style')?.match(new RegExp(`${property}:\\s*([\\d.]+)px`));
+        assert.ok(match, `${selector}의 ${property} 동적 스타일이 필요합니다.`);
+        return Number(match[1]);
+      };
+      if (mode === 'today_snack') {
+        assert.equal(html('.meal').length, 4);
+        assert.notEqual(numberFromStyle('.menu:first', 'font-size'), numberFromStyle('.menu:last', 'font-size'));
+        assert.notEqual(numberFromStyle('.sections', '--snack-row-1'), numberFromStyle('.sections', '--snack-row-2'));
+      }
+      if (mode === 'today_teacher_full') {
+        assert.equal(html('.meal').length, 3);
+        assert.ok(numberFromStyle('.breakfast', 'height') < numberFromStyle('.lunch', 'height'));
+        assert.ok(numberFromStyle('.breakfast .menu', 'font-size') > numberFromStyle('.lunch .menu', 'font-size'));
+      }
+      if (mode === 'today_dormitory_full') {
+        assert.ok(numberFromStyle('.breakfast', 'height') < numberFromStyle('.lunch', 'height'));
+        assert.ok(numberFromStyle('.breakfast .menu', 'font-size') > numberFromStyle('.lunch .menu', 'font-size'));
+      }
+    }
+    for (const mode of ['today_snack', 'today_teacher_full'] as const) {
+      const empty = coopStory(resolveStoryRequest(mode, '2026-09-18'), emptyCoop);
+      const file = await renderer.render(empty, directory);
+      const html = load(await readFile(file.replace('.jpg', '.html'), 'utf8'));
+      assert.equal(html('.empty').length, mode === 'today_snack' ? 4 : 3);
     }
     const tooLong = coopStory(resolveStoryRequest('today_snack', '2026-09-18'), coopMenu);
     tooLong.sections[0]!.items = Array(70).fill('매우 긴 메뉴');
-    await assert.rejects(renderStory(tooLong, directory), /메뉴가 이미지 영역을 초과/);
-  } finally { await rm(directory, { recursive: true, force: true }); }
+    await assert.rejects(renderer.render(tooLong, directory), /메뉴가 이미지 영역을 초과/);
+  } finally {
+    await renderer.close();
+    await rm(directory, { recursive: true, force: true });
+  }
 });

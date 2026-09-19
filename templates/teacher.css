@@ -1,13 +1,3 @@
-.teacher.full { background: linear-gradient(to bottom, #fff 0 630px, var(--paper) 630px 100%); }
-.teacher .meal { position: absolute; left: 69px; right: 69px; }
-.teacher.full .breakfast { top: 450px; height: 165px; }
-.teacher.full .breakfast .meal-heading { flex-basis: 58px; padding-bottom: 12px; }
-.teacher.full .breakfast .symbol { transform: scale(.7); }
-.teacher.full .breakfast .menu { padding-top: 12px; }
-.teacher.full .meal.lunch { top: 650px; height: 505px; }
-.teacher.full .meal.dinner { top: 1235px; height: 494px; color: var(--paper); }
-.teacher.full .night { top: 1185px; }
-.teacher.full h2 { font-size: 48px; }
-.teacher.full .meal-heading { flex-basis: 66px; padding-bottom: 13px; }
-.teacher.full .menu { font-size: 38px; line-height: 1.25; gap: 7px; padding-top: 16px; }
-.teacher.breakfast .meal, .teacher.lunch .meal, .teacher.dinner .meal { top: 530px; height: 1199px; }
+.teacher.full .dinner { color: var(--paper); }
+.teacher.breakfast .sections, .teacher.lunch .sections, .teacher.dinner .sections { top: 530px; }
+.teacher.breakfast .meal, .teacher.lunch .meal, .teacher.dinner .meal { height: 100%; }

@@ -1,10 +1,3 @@
-.dormitory .meal { position: absolute; left: 69px; right: 69px; }
-.dormitory.full { background: linear-gradient(to bottom, #fff 0 825px, var(--paper) 825px 100%); }
-.dormitory.full .breakfast { top: 450px; height: 350px; }
-.dormitory.full .meal.lunch { top: 845px; height: 425px; }
-.dormitory.full .meal.dinner { top: 1325px; height: 404px; color: var(--paper); }
-.dormitory.full .night { top: 1295px; }
-.dormitory.full h2 { font-size: 48px; }
-.dormitory.full .meal-heading { flex-basis: 66px; padding-bottom: 13px; }
-.dormitory.full .menu { font-size: 38px; line-height: 1.23; gap: 7px; padding-top: 16px; }
-.dormitory.breakfast .meal, .dormitory.lunch .meal, .dormitory.dinner .meal { top: 530px; height: 1199px; }
+.dormitory.full .dinner { color: var(--paper); }
+.dormitory.breakfast .sections, .dormitory.lunch .sections, .dormitory.dinner .sections { top: 530px; }
+.dormitory.breakfast .meal, .dormitory.lunch .meal, .dormitory.dinner .meal { height: 100%; }

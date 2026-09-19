@@ -1,6 +1,6 @@
-.snack .sections { position: absolute; inset: 468px 69px auto; height: 1261px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 740px 441px; gap: 80px 44px; }
+.snack .sections { top: 468px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: var(--snack-row-1, 1fr) var(--snack-row-2, 1fr); gap: 44px; column-gap: 44px; }
 .story.snack .night { display: none; }
 .story.snack footer { color: var(--ink); border-color: #183d4440; }
 .snack h2 { font-size: 44px; letter-spacing: -2px; }
 .snack .meal-heading { gap: 18px; }
-.snack .menu { font-size: 40px; gap: 12px; letter-spacing: -1.5px; }
+.snack .menu { letter-spacing: -1.5px; }

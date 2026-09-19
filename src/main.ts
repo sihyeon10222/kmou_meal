@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { loadConfig, safeError } from './config.js';
 import { fetchDailyMenu, seoulDate, validateDate } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
-import { renderStory } from './render-story.js';
+import { createStoryRenderer } from './render-story.js';
 import { parseRunMode } from './story-modes.js';
 import { runStories } from './run-stories.js';
 import { StoryStorage } from './upload-supabase.js';
@@ -27,11 +27,12 @@ async function main(): Promise<void> {
     await Promise.all([storage.checkBucket(), instagram.checkAccount()]);
     return { storage, instagram };
   })();
+  const renderer = createStoryRenderer();
   const results = await runStories(mode, baseDate, preview, {
     fetchDormitory: fetchDailyMenu,
     fetchCoop: fetchCoopDailyMenu,
     render: async data => {
-      const image = await renderStory(data);
+      const image = await renderer.render(data);
       await writeFile(`output/${data.request.targetDate}-${data.request.mode}.menu.json`, JSON.stringify(data, null, 2));
       console.log(`Story 이미지: ${image}`);
       return image;
@@ -43,7 +44,7 @@ async function main(): Promise<void> {
         await writeFile(`output/${targetDate}-${storyMode}-${record.runId}.publish.json`, JSON.stringify(record, null, 2));
       });
     },
-  });
+  }).finally(() => renderer.close());
   await writeFile(`output/${baseDate}-${mode}-${randomUUID()}.run.json`, JSON.stringify({ mode, baseDate, preview, results }, null, 2));
   console.log(JSON.stringify(results, null, 2));
   if (results.some(result => result.status === 'failed')) process.exitCode = 1;
