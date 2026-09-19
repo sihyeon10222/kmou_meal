@@ -25,12 +25,13 @@ test('메뉴 HTML escape, 공통 헤더/푸터, 부분 empty 영역 유지', asy
 test('메뉴 항목은 제목처럼 임의로 굵어지지 않고 조합 기호 앞에서 줄바꿈할 수 있다', async () => {
   const request = resolveStoryRequest('today_snack', '2026-09-18');
   const html = await storyHtml(coopStory(request, {
-    snackCorner: { western: ['삼겹살구이*상추쌈'], setMeal: [], ramen: [], snack: ['메밀소바+유부초밥'] },
+    snackCorner: { western: ['삼겹살구이*상추쌈'], setMeal: [], ramen: [], snack: ['메밀소바+유부초밥/김치'], },
     staffRestaurant: { breakfast: [], lunch: [], dinner: [] }, date: '2026-09-18',
   }));
   assert.equal((html.match(/\.dish:first-child/g) ?? []).length, 0);
-  assert.equal((html.match(/<wbr>/g) ?? []).length, 2);
+  assert.equal((html.match(/<wbr>/g) ?? []).length, 3);
   assert.match(load(html)('.meal.western .dish').html() ?? '', /삼겹살구이<wbr>\*상추쌈/);
+  assert.match(load(html)('.meal.snack .dish').html() ?? '', /메밀소바<wbr>\+유부초밥<wbr>\/김치/);
 });
 
 test('18개 모드의 실제 DOM은 요청한 영역만 포함하고 영어 끼니를 유지한다', async () => {

@@ -50,7 +50,12 @@ export function escapeHtml(value: string): string {
 
 function sectionHtml(section: MenuSection): string {
   const symbol = section.key === 'dinner' ? 'moon' : 'sun';
-  const dishHtml = (item: string) => escapeHtml(item).replace(/([+*])/g, '<wbr>$1');
+  const dishHtml = (item: string) => Array.from(item, character => {
+    // 메뉴 조합에 쓰이는 모든 유니코드 문장부호·기호 앞을 선택적 줄바꿈 지점으로 둡니다.
+    // escapeHtml 이후에 처리하면 &amp; 같은 HTML entity를 깨뜨릴 수 있으므로 원문을 순회합니다.
+    const isBreakPoint = /[\p{P}\p{S}]/u.test(character) && character !== '<' && character !== '>';
+    return `${isBreakPoint ? '<wbr>' : ''}${escapeHtml(character)}`;
+  }).join('');
   const items = section.items.length
     ? section.items.map(item => `<p class="dish">${dishHtml(item)}</p>`).join('')
     : '<p class="dish empty">메뉴 없음</p>';
