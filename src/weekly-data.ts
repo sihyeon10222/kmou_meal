@@ -50,7 +50,7 @@ export function weeklyCaption(kind: WeeklyKind, dates: string[]): string {
   const [endYear, endMonth, endDay] = end.split('-').map(Number);
   const last = `${year !== endYear ? `${endYear}년 ` : ''}${endMonth}월 ${endDay}일`;
   const name = { teacher: '교직원 식당 식단', snack: '학식 식단', dormitory: '기숙사 식단' }[kind];
-  const tag = { teacher: '해양대교직원식당', snack: '해양대학식', dormitory: '해양대학생생활관' }[kind];
+  const tag = { teacher: '해양대교직원식당', snack: '해양대학식', dormitory: '해양대기숙사' }[kind];
   return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n#해양대학교 #${tag}`;
 }
 export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, coop: fetchCoopDailyMenu }) {
