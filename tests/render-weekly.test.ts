@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { chromium } from 'playwright';
 import { createWeeklyFetcher, weeklyRange, type WeeklyData } from '../src/weekly-data.js';
 import { renderWeekly, weeklyHtml } from '../src/render-weekly.js';
 import { coopMenu } from './fixtures.js';
@@ -32,6 +33,34 @@ for (const kind of ['teacher', 'snack', 'dormitory'] as const) {
           const expected = await sharp(result.master).extract({ left: index * 1080, top: 0, width: 1080, height: 1440 }).jpeg({ quality: 94, chromaSubsampling: '4:4:4' }).toBuffer();
           assert.deepEqual(await readFile(path), expected);
         }
+        const browser = await chromium.launch({ headless: true });
+        try {
+          const page = await browser.newPage({ viewport: { width: 2160, height: 1440 } });
+          await page.setContent(await readFile(join(dir, `${range.week}-dormitory-weekly.html`), 'utf8'));
+          await page.evaluate(() => document.fonts.ready.then(() => undefined));
+          const layout = await page.evaluate(() => {
+            const days = [...document.querySelectorAll('.day')];
+            const geometry = days.map(day => ({
+              width: day.getBoundingClientRect().width,
+              headings: [...day.querySelectorAll('h2')].map(node => node.textContent),
+              fonts: [...day.querySelectorAll('.menu')].map(node => getComputedStyle(node).fontSize),
+              menus: day.querySelectorAll('.menu').length,
+            }));
+            const title = document.querySelector('h1')!.getBoundingClientRect();
+            const range = document.querySelector('.range')!.getBoundingClientRect();
+            const crossesCenter = [...days[3]!.querySelectorAll('.menu p')].some(node => {
+              const text = document.createRange(); text.selectNodeContents(node);
+              return [...text.getClientRects()].some(rect => rect.left < 1080 && rect.right > 1080);
+            });
+            return { geometry, crossesCenter, titleBottom: title.bottom, titleLeft: title.left, rangeTop: range.top, rangeLeft: range.left };
+          });
+          assert.equal(layout.geometry.length, 7);
+          for (const day of layout.geometry) assert.deepEqual(day, layout.geometry[0]);
+          assert.equal(layout.crossesCenter, true, 'Thursday menu must not avoid the center crop');
+          assert.equal(layout.rangeLeft, layout.titleLeft);
+          assert.ok(layout.rangeTop >= layout.titleBottom);
+          assert.ok(layout.rangeTop - layout.titleBottom < 20);
+        } finally { await browser.close(); }
       }
     } finally { await rm(dir, { recursive: true, force: true }); }
   });

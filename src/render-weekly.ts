@@ -16,18 +16,9 @@ export async function weeklyHtml(data: WeeklyData): Promise<string> {
   const panorama = data.kind === 'dormitory';
   const title = { dormitory: '기숙사 식단', teacher: '교직원 식당 식단', snack: '학식 식단' }[data.kind];
   const days = data.days.map((day, index) => {
-    const seam = panorama && index === 3;
     const date = `${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))}`;
     const label = `${['월', '화', '수', '목', '금', '토', '일'][index]} ${date}`;
-    return `<article class="day${seam ? ' seam' : ''}"><div class="day-title">${seam ? `<span>${label}</span><span>${label}</span>` : label}</div>${day.sections.map(section => {
-      if (seam) {
-        // The Thursday box remains full width. Each text block lives on one side
-        // of x=1080; never crop through glyphs at the panorama boundary.
-        const middle = Math.ceil(section.items.length / 2);
-        const left = section.items.slice(0, middle);
-        const right = section.items.slice(middle);
-        return `<section class="cell ${section.key}"><div class="halves"><div class="half"><h2>${section.label}</h2><div class="menu">${itemsHtml(left)}</div></div><div class="half"><h2>${section.label}</h2><div class="menu">${right.length ? itemsHtml(right) : ''}</div></div></div></section>`;
-      }
+    return `<article class="day"><div class="day-title">${label}</div>${day.sections.map(section => {
       return `<section class="cell ${section.key}"><h2>${section.label}</h2><div class="menu">${itemsHtml(section.items)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
@@ -62,7 +53,7 @@ export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Prom
       for (let row = 0; row < rowCount; row++) {
         const cells = days.map(day => day.querySelectorAll<HTMLElement>('.cell')[row]!);
         minimums.push(Math.max(...cells.map(cell => measure(cell, 18))));
-        maximums.push(Math.max(...cells.map(cell => measure(cell, cell.closest('.seam') ? 24 : 32))));
+        maximums.push(Math.max(...cells.map(cell => measure(cell, 32))));
       }
       const remaining = calendar.clientHeight - 70 - minimums.reduce((sum, value) => sum + value, 0);
       if (remaining < 0) throw new Error('주간 메뉴가 최소 글자 크기에서도 영역을 초과합니다.');
@@ -76,7 +67,7 @@ export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Prom
           const rect = menu.getBoundingClientRect();
           return rect.bottom <= cell.getBoundingClientRect().bottom - 12 && menu.scrollWidth <= menu.clientWidth + 1;
         });
-        let size = cell.closest('.seam') ? 24 : 32;
+        let size = 32;
         for (; size >= 18; size--) {
           menus.forEach(menu => { menu.style.fontSize = `${size}px`; });
           if (fits()) break;
@@ -89,22 +80,11 @@ export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Prom
           throw new Error('주간 메뉴 영역이 날짜 칸 또는 푸터를 침범합니다.');
         }
       }
-      // Assert that no visible text range crosses the center of the master.
-      if (document.querySelector('.panorama')) {
-        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-        while (walker.nextNode()) {
-          const node = walker.currentNode;
-          if (!node.textContent?.trim() || node.parentElement?.closest('style')) continue;
-          const range = document.createRange(); range.selectNodeContents(node);
-          for (const rect of range.getClientRects()) {
-            if (rect.left < 1080 && rect.right > 1080) throw new Error('파노라마 중앙에서 글자가 잘립니다.');
-          }
-        }
-      }
     });
     await writeFile(`${stem}.html`, await page.content());
     await writeFile(`${stem}.menu.json`, JSON.stringify(data, null, 2));
-    // One lossless rendered master is the sole source of both JPEG pages.
+    // Render the complete design before cropping. The center may cut through
+    // Thursday's text intentionally; no layout element adapts to the crop line.
     const bytes = await page.screenshot({ type: 'png' });
     if (!panorama) {
       const image = `${stem}.jpg`;
