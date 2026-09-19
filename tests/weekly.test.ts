@@ -18,7 +18,7 @@ test('following calendar week and ISO year/week boundaries', () => {
   assert.throws(() => weeklyRange('2026-02-30'));
 });
 test('captions use actual ranges, kind hashtags and year rollover', () => {
-  assert.equal(weeklyCaption('dormitory', range.dates), '2026년 9월 21일 ~ 9월 27일 기숙사 식단입니다.\n\n#해양대학교 #해양대학생생활관');
+  assert.equal(weeklyCaption('dormitory', range.dates), '2026년 9월 21일 ~ 9월 27일 기숙사 식단입니다.\n\n#해양대학교 #해양대기숙사');
   assert.equal(weeklyCaption('teacher', range.dates.slice(0, 5)), '2026년 9월 21일 ~ 9월 25일 교직원 식당 식단입니다.\n\n#해양대학교 #해양대교직원식당');
   assert.match(weeklyCaption('snack', range.dates.slice(0, 5)), /#해양대학식$/);
   assert.match(weeklyCaption('dormitory', weeklyRange('2026-12-27').dates), /2026년 12월 28일 ~ 2027년 1월 3일/);
