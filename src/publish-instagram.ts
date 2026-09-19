@@ -106,6 +106,52 @@ export class InstagramPublisher {
     throw new Error('Instagram 게시 시도 횟수를 초과했습니다.');
   }
 
+  /** Feed images omit media_type; carousel children are never published alone. */
+  async publishFeed(imageUrls: string[], caption: string, onContainer: (id: string) => Promise<void>, beforePublish: () => Promise<void>): Promise<string> {
+    if (imageUrls.length !== 1 && imageUrls.length !== 2) throw new Error('주간 피드는 1장 또는 2장이어야 합니다.');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const children: string[] = [];
+      for (const imageUrl of imageUrls) {
+        const parameters: Record<string, string> = { image_url: imageUrl };
+        if (imageUrls.length > 1) parameters.is_carousel_item = 'true';
+        else parameters.caption = caption;
+        const container = await this.request(`${this.config.igUserId}/media`, 'POST', parameters);
+        const id = requiredString(container, 'id', 'Instagram feed container ID가 없습니다.');
+        await onContainer(id);
+        await this.waitUntilReady(id);
+        children.push(id);
+      }
+      let parent = children[0]!;
+      if (children.length > 1) {
+        const container = await this.request(`${this.config.igUserId}/media`, 'POST', {
+          media_type: 'CAROUSEL', children: children.join(','), caption,
+        });
+        parent = requiredString(container, 'id', 'Instagram carousel container ID가 없습니다.');
+        await onContainer(parent);
+        await this.waitUntilReady(parent);
+      }
+      await this.sleep(POLL_INTERVAL_MS);
+      await beforePublish();
+      try { return await this.publish(parent); }
+      catch (error) {
+        if (attempt !== 0 || !(error instanceof InstagramApiError) || error.code !== 24 || error.subcode !== 2207006) throw error;
+        console.warn('Instagram feed 24/2207006: 10초 후 새 container로 복구합니다 (복구 1/1).');
+        await this.sleep(RECOVERY_DELAY_MS);
+      }
+    }
+    throw new Error('Instagram 피드 게시 시도 횟수를 초과했습니다.');
+  }
+
+  async verifyFeed(mediaId: string, imageCount: number): Promise<void> {
+    const media = await this.request(mediaId, 'GET', { fields: 'id,media_type,children{id}' });
+    if (media.id !== mediaId || media.media_type !== (imageCount === 1 ? 'IMAGE' : 'CAROUSEL_ALBUM')) {
+      throw new Error('Instagram 피드 게시 결과 확인 실패');
+    }
+    if (imageCount > 1 && (!isGraphData(media.children) || !Array.isArray(media.children.data) || media.children.data.length !== imageCount)) {
+      throw new Error('Instagram 캐러셀 이미지 수 확인 실패');
+    }
+  }
+
   async verifyStory(mediaId: string): Promise<{ id: string; mediaType: string; timestamp: string }> {
     const media = await this.request(mediaId, 'GET', { fields: 'id,media_type,timestamp' });
     if (media.id !== mediaId || media.media_type !== 'IMAGE') throw new Error('게시된 이미지 확인 실패');

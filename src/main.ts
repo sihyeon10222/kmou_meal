@@ -9,6 +9,9 @@ import { runStories } from './run-stories.js';
 import { StoryStorage } from './upload-supabase.js';
 import { InstagramPublisher } from './publish-instagram.js';
 import { postStory } from './post-story.js';
+import { executeWeekly } from './weekly.js';
+import { weeklyRange } from './weekly-data.js';
+import { needsWeeklyFirst, requireWeeklyComplete } from './run-weekly.js';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -18,6 +21,10 @@ async function main(): Promise<void> {
   const mode = parseRunMode(args[0] || process.env.RUN_MODE || 'tomorrow_full_batch');
   const baseDate = validateDate(args[1] || process.env.BASE_DATE?.trim() || seoulDate());
   await mkdir('output', { recursive: true });
+  if (needsWeeklyFirst(mode, baseDate)) {
+    const weekly = await executeWeekly(weeklyRange(baseDate), 'all', preview);
+    requireWeeklyComplete(weekly, preview);
+  }
   // 미리보기·주말 skip에서는 게시 서비스를 초기화하지 않습니다.
   let services: Promise<{ storage: StoryStorage; instagram: InstagramPublisher }> | undefined;
   const getServices = () => services ??= (async () => {

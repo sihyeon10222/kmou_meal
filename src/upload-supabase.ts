@@ -69,4 +69,27 @@ export class StoryStorage {
     });
     if (error) throw new Error(`게시 기록 저장 실패: ${error.message}`);
   }
+
+  async readWeeklyJson(path: string): Promise<unknown | undefined> {
+    const { data, error } = await this.bucket.download(`_weekly/${path}`);
+    if (error) {
+      const code = 'statusCode' in error ? String(error.statusCode) : '';
+      if (code === '404' || ('code' in error && error.code === 'NoSuchKey')) return undefined;
+      throw new Error(`주간 게시 기록 조회 실패: ${error.message}`);
+    }
+    if (!data) throw new Error('주간 게시 기록 본문이 없습니다.');
+    return JSON.parse(await data.text()) as unknown;
+  }
+
+  async writeWeeklyJson(path: string, record: unknown, upsert = true): Promise<void> {
+    const { error } = await this.bucket.upload(`_weekly/${path}`, JSON.stringify(record, null, 2), {
+      contentType: 'application/json', upsert, cacheControl: '0',
+    });
+    if (error) throw new Error(`주간 게시 기록/잠금 저장 실패 (${path}): ${error.message}`);
+  }
+
+  async removeWeeklyLock(path: string): Promise<void> {
+    const { error } = await this.bucket.remove([`_weekly/${path}/lock.json`]);
+    if (error) throw new Error(`주간 게시 잠금 해제 실패: ${error.message}`);
+  }
 }

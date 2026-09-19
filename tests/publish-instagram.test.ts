@@ -80,3 +80,61 @@ test('게시 POST 응답 유실 시 자동 재전송하지 않는다', async (t)
   await assert.rejects(new InstagramPublisher(config).publish('container'), /Connection reset/);
   assert.equal(fetchMock.mock.callCount(), 1);
 });
+
+for (const count of [1, 2]) {
+  test(`feed API publishes ${count} image(s), validates containers and retains child order`, async t => {
+    const containers: string[] = [];
+    const parameters: URLSearchParams[] = [];
+    let publishCount = 0;
+    let persistedBeforePublish = false;
+    t.mock.method(globalThis, 'fetch', async (url: URL, init: RequestInit) => {
+      if (url.pathname === '/123/media') {
+        parameters.push(new URLSearchParams(init.body as URLSearchParams));
+        return Response.json({ id: `c${parameters.length}` });
+      }
+      if (url.pathname === '/123/media_publish') {
+        assert.equal(persistedBeforePublish, true);
+        assert.equal((init.body as URLSearchParams).get('creation_id'), count === 1 ? 'c1' : 'c3');
+        publishCount++; return Response.json({ id: 'feed' });
+      }
+      if (url.pathname === '/feed') return Response.json({ id: 'feed', media_type: count === 1 ? 'IMAGE' : 'CAROUSEL_ALBUM', children: { data: [{ id: 'one' }, { id: 'two' }] } });
+      return Response.json({ status_code: 'FINISHED' });
+    });
+    const publisher = new InstagramPublisher(config, async () => {});
+    const urls = ['https://example.com/1.jpg', 'https://example.com/2.jpg'].slice(0, count);
+    assert.equal(await publisher.publishFeed(urls, 'caption', async id => { containers.push(id); }, async () => { persistedBeforePublish = true; }), 'feed');
+    assert.equal(publishCount, 1);
+    assert.equal(parameters[0]!.get('image_url'), urls[0]);
+    assert.equal(parameters[0]!.get('media_type'), null);
+    if (count === 2) {
+      assert.equal(parameters[0]!.get('is_carousel_item'), 'true');
+      assert.equal(parameters[1]!.get('image_url'), urls[1]);
+      assert.equal(parameters[2]!.get('children'), 'c1,c2');
+      assert.equal(parameters[2]!.get('media_type'), 'CAROUSEL');
+      assert.equal(parameters[2]!.get('caption'), 'caption');
+      assert.deepEqual(containers, ['c1', 'c2', 'c3']);
+    } else assert.equal(parameters[0]!.get('caption'), 'caption');
+    await publisher.verifyFeed('feed', count);
+  });
+}
+for (const scenario of ['recover', 'network', 'auth', 'exhaust'] as const) {
+  test(`feed recovery policy: ${scenario}`, async t => {
+    let publishes = 0;
+    let created = 0;
+    t.mock.method(globalThis, 'fetch', async (url: URL) => {
+      if (url.pathname === '/123/media') return Response.json({ id: `c${++created}` });
+      if (url.pathname === '/123/media_publish') {
+        publishes++;
+        if (scenario === 'network') throw new Error('connection reset');
+        if (scenario === 'recover' && publishes === 2) return Response.json({ id: 'feed' });
+        return Response.json({ error: { code: scenario === 'auth' ? 190 : 24, error_subcode: 2207006 } }, { status: 400 });
+      }
+      return Response.json({ status_code: 'FINISHED' });
+    });
+    const publisher = new InstagramPublisher(config, async () => {});
+    const promise = publisher.publishFeed(['https://example.com/1.jpg'], 'caption', async () => {}, async () => {});
+    if (scenario === 'recover') assert.equal(await promise, 'feed');
+    else await assert.rejects(promise);
+    assert.equal(publishes, ['recover', 'exhaust'].includes(scenario) ? 2 : 1);
+  });
+}

@@ -9,6 +9,8 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "preview": "tsx src/main.ts --preview",
+    "weekly": "tsx src/weekly-cli.ts",
+    "preview:weekly": "tsx src/weekly-cli.ts --preview",
     "check-setup": "tsx src/check-setup.ts",
     "secrets:sync": "tsx scripts/sync-secrets.ts",
     "build": "tsc",
@@ -20,7 +22,8 @@
     "@supabase/supabase-js": "^2.116.0",
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@types/node": "^24.13.5",

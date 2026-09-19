@@ -1,0 +1,82 @@
+name: Manual KMOU Weekly Feed
+run-name: Weekly · ${{ inputs.kind }} · ${{ inputs.target_week || inputs.base_date || 'next week' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: '게시물 종류 (all: 교직원 → 학식 → 기숙사)'
+        type: choice
+        required: true
+        options: [all, teacher, snack, dormitory]
+        default: all
+      base_date:
+        description: '기준일 YYYY-MM-DD의 다음 주 (비우면 한국시간 오늘)'
+        type: string
+        required: false
+      target_week:
+        description: '대상 ISO 주차 YYYY-Www (예: 2026-W39, 기준일보다 우선)'
+        type: string
+        required: false
+      preview_only:
+        description: '이미지만 생성하고 게시하지 않기'
+        type: boolean
+        default: true
+      force_publish:
+        description: '이미 성공한 동일 주차 게시물도 다시 게시'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One publication queue shared with both existing Story workflows.
+concurrency:
+  group: kmou-instagram-story
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Seoul
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Check and build
+        run: npm run typecheck && npm test && npm run build
+      - name: Render or publish weekly feed
+        env:
+          WEEKLY_KIND: ${{ inputs.kind }}
+          BASE_DATE: ${{ inputs.base_date }}
+          TARGET_WEEK: ${{ inputs.target_week }}
+          PREVIEW_ONLY: ${{ inputs.preview_only }}
+          FORCE_PUBLISH: ${{ inputs.force_publish }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+        run: npm run weekly
+      - name: Save weekly previews and receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekly-${{ github.run_id }}
+          path: |
+            output/*.jpg
+            output/*.png
+            output/*.json
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,6 +1,6 @@
 # KMOU Meal
 
-국립한국해양대학교 **기숙사 식당 · 학식 스낵코너 · 교직원 식당**의 식단을 조회해 **1080 × 1920 JPEG**로 렌더링하고 Instagram Story에 자동 게시하는 Node.js + TypeScript 프로젝트입니다.
+국립한국해양대학교 **기숙사 식당 · 학식 스낵코너 · 교직원 식당**의 식단을 조회해 Instagram **Story와 주간 피드**로 게시하는 Node.js + TypeScript 프로젝트입니다. Story는 1080 × 1920, 주간 피드는 1080 × 1440 JPEG를 사용합니다.
 
 ## 작동 흐름
 
@@ -13,9 +13,9 @@ cron-job.org → GitHub Actions → KMOU 식단 조회·정리
 | --- | --- |
 | Node.js 24 / TypeScript | 실행 모드, 대상 날짜, 식당별 순차 처리 |
 | KMOU 식단 API / Cheerio | 기숙사 식단 조회, 학식 POST HTML 파싱 및 가격 제거 |
-| HTML / CSS / Playwright | 한글 폰트가 포함된 1080 × 1920 Story 이미지 생성 |
+| HTML / CSS / Playwright / Sharp | 한글 식단 이미지 렌더링과 주간 파노라마 분할 |
 | Supabase Storage | 이미지 공개 URL과 실행별 게시 기록 저장 |
-| Instagram Login API | 이미지 container 생성, Story 게시, 게시 결과 확인 |
+| Instagram Login API | Story·단일 피드·캐러셀 container 생성, 게시 및 결과 확인 |
 | cron-job.org / GitHub Actions | 한국시간 예약 호출 및 클라우드 실행 |
 
 ## 빠른 시작: 업로드 없이 미리보기
@@ -138,7 +138,7 @@ npm start -- today_dormitory_lunch
 
 GitHub 자체 `schedule` 대신 cron-job.org가 GitHub의 `workflow_dispatch` API를 호출합니다. 로컬 PC나 WebStorm이 꺼져 있어도 실행됩니다.
 
-**Daily KMOU Batch**는 기존 `daily.yml` 주소와 `run_mode` 입력을 유지합니다. 기존 cron-job.org 요청 URL·본문·예약 시각은 변경할 필요가 없습니다. 22:00 배치의 기숙사 full은 이제 아침·점심·저녁을 모두 포함합니다. 아침 단독 모드는 수동 실행용이며 자동 아침 배치는 추가하지 않습니다.
+**Daily KMOU Batch**는 기존 `daily.yml` 주소와 `run_mode` 입력을 유지합니다. 기존 cron-job.org 요청 URL·본문·예약 시각은 변경할 필요가 없습니다. 22:00 배치의 기숙사 full은 아침·점심·저녁을 모두 포함합니다. **일요일의 `tomorrow_full_batch`는 다음 주 피드 3종을 먼저 완료한 뒤 Story를 실행합니다.** 아침 단독 모드는 수동 실행용이며 자동 아침 배치는 추가하지 않습니다.
 
 | 예약 시각 (Asia/Seoul) | `run_mode` |
 | --- | --- |
@@ -209,7 +209,79 @@ gh workflow run manual-story.yml --ref main \
 gh run list --workflow daily.yml --limit 10
 ```
 
-## 메뉴 없음·실패·재게시 정책
+## 주간 피드
+
+매주 **일요일 22:00 KST**, 기존 cron-job.org 저녁 요청 하나로 아래 순서를 실행합니다. 별도 예약 작업을 추가하지 않습니다.
+
+```text
+교직원 주간 피드 → 학식 주간 피드 → 기숙사 주간 캐러셀
+→ 기존 tomorrow_full_batch Story (기숙사 → 학식 → 교직원)
+```
+
+| 종류 | 날짜 | 포함 메뉴 | 이미지 |
+| --- | --- | --- | --- |
+| `teacher` | 다음 주 월~금 | Breakfast / Lunch / Dinner | 1080 × 1440 한 장 |
+| `snack` | 다음 주 월~금 | 분식코너 / 정식 | 1080 × 1440 한 장 |
+| `dormitory` | 다음 주 월~일 | Breakfast / Lunch / Dinner | 1080 × 1440 두 장 캐러셀 |
+
+요일은 왼쪽부터 순서대로 배치합니다. 메뉴가 없는 날짜·끼니·코너도 유지하며 `메뉴 없음`을 표시합니다. 평일 공휴일도 동일합니다. 학식 주간 피드에는 양식·라면코너를 넣지 않습니다. 캡션 날짜 범위와 식당별 해시태그는 자동 생성합니다.
+
+기숙사는 **2160 × 1440 PNG 마스터**를 한 번 렌더링하고 x=1080에서 정확히 잘라 두 JPEG를 만듭니다. 같은 폭의 7개 요일 중 목요일 칸은 두 장에 걸쳐 이어집니다. 중앙에 별도 여백을 추가하지 않으며, 목요일 메뉴 텍스트는 절단선 양쪽에 나누어 배치합니다.
+
+### 로컬 실행
+
+```bash
+# 오늘을 기준으로 다음 주 세 식당 이미지 생성 (인증 정보 불필요)
+npm run preview:weekly
+
+# 기준일 2026-09-20의 다음 주: 9/21~9/27
+npm run preview:weekly -- --base-date 2026-09-20
+
+# 정확한 ISO 주차와 식당 지정
+npm run preview:weekly -- --week 2026-W39 --kind dormitory
+
+# 실제 게시: 성공한 동일 주차·종류는 skip
+npm run weekly -- --week 2026-W39 --kind all
+
+# 수동 강제 재게시
+npm run weekly -- --week 2026-W39 --kind teacher --force
+
+# 일요일 전체 순서 미리보기: 피드 3종 → 다음 날 Story 배치
+npm run preview -- tomorrow_full_batch 2026-09-20
+```
+
+`--kind`는 `teacher`, `snack`, `dormitory`, `all` 중 선택합니다. `--base-date`는 **그 날짜가 속한 주의 다음 주**를 뜻하며, 생략하면 한국시간 오늘입니다. `--week YYYY-Www`가 있으면 기준일보다 우선합니다. 연말·연초는 ISO 주차의 연도를 사용합니다. Preview는 `--force`가 있어도 게시·업로드·게시 기록 조회를 하지 않습니다.
+
+결과는 `output/YYYY-Www-종류-weekly.jpg`, 기숙사는 `-1.jpg`, `-2.jpg`와 `-master.png`로 저장합니다. HTML·메뉴 JSON·실행 결과도 함께 생성합니다.
+
+### GitHub Actions 수동 실행
+
+**Actions → Manual KMOU Weekly Feed → Run workflow**에서 다음을 선택합니다.
+
+1. `kind`: 종류 또는 `all`
+2. `base_date`: 기준일, 또는 `target_week`: 정확한 대상 ISO 주차
+3. `preview_only`: 기본 체크. 해제하면 실제 게시합니다.
+4. `force_publish`: 기본 해제. 체크하면 이미 성공한 주차·종류도 다시 게시합니다.
+
+이미지는 **Artifacts → weekly-실행번호**에서 확인합니다. 일요일 Daily Batch가 생성한 주간 이미지·마스터도 해당 배치의 Story artifact에 포함됩니다. 세 workflow는 동일한 게시 대기열을 사용합니다.
+
+```bash
+gh workflow run weekly.yml --ref main \
+  -f kind=all -f target_week=2026-W39 -f preview_only=true
+```
+
+### 중복 방지와 실패 복구
+
+- 주간 피드만 **ISO 주차 + 종류**별 성공 기록으로 중복을 막습니다. 수동 실행도 동일하며 `--force`로 재게시할 수 있습니다. 기존 Story 재게시 정책은 그대로입니다.
+- Supabase `_weekly/주차/종류/success.json`은 실제 Instagram publish 성공 후에만 저장합니다. 기록 조회 실패나 손상은 미게시로 간주하지 않고 실패 종료합니다.
+- 피드 하나가 실패하면 후속 피드와 Story를 실행하지 않습니다. 재실행은 성공한 피드를 skip하고 남은 피드를 순서대로 처리합니다. 세 종류가 모두 게시 또는 성공 기록에 따른 skip 상태여야 Story로 넘어갑니다.
+- `_weekly/주차/종류/lock.json`으로 로컬·Actions 동시 게시를 방지합니다. 정상 종료와 명확한 미게시 실패 때 해제하며, 네트워크 응답 유실·성공 기록 저장 실패·실행 강제 종료 시 잠금을 유지합니다. `force`도 진행 중인 잠금을 무시하지 않습니다.
+- 잠금이 남으면 Instagram 계정과 `output/*.publish.json`, Supabase `attempts/`의 container/media ID를 확인합니다. **이미 게시된 것이 확인되면 해당 게시 성공 기록을 `success.json`으로 복구한 후**, 게시되지 않았음이 확인되면 그대로, Supabase Storage에서 해당 `lock.json`을 삭제하고 재실행합니다. 결과가 불확실한 동안 잠금을 삭제하지 않습니다.
+- 기존과 동일하게 `24/2207006`만 새 container로 한 번 복구합니다. 그 외 API 오류·네트워크 오류를 자동 재게시하지 않습니다.
+
+실제 피드 업로드에는 기존 Instagram Login 게시 권한과 Supabase 설정을 사용합니다. 3:4 JPEG를 그대로 전달하며 다른 비율로 자동 변환하지 않습니다. API가 거절하면 실패로 기록하므로 최초 실제 운영 게시에서 계정의 이미지 규격 수용 여부도 확인해야 합니다.
+
+## Story 메뉴 없음·실패·재게시 정책
 
 - **대상 날짜가 토·일이면** 스낵·교직원 식당을 건너뜁니다. 기숙사는 처리합니다. 금요일 밤 배치는 기숙사만, 일요일 밤 배치는 세 식당을 처리합니다.
 - 평일 공휴일은 건너뛰지 않습니다. 메뉴가 없는 끼니·코너에는 **메뉴 없음**을 표시하고 나머지 메뉴는 유지합니다. 별도 공휴일 API나 늦은 등록 재조회는 사용하지 않습니다.
@@ -228,6 +300,12 @@ gh run list --workflow daily.yml --limit 10
 ```text
 src/
   main.ts                 # CLI 진입점, preview/게시 분기
+  weekly-cli.ts           # 주간 피드 수동/preview CLI
+  weekly-data.ts          # ISO 주차, 날짜별 식단, 캡션
+  weekly.ts               # 주간 실행 서비스 연결과 결과 저장
+  run-weekly.ts           # 피드 순서, 중복 skip, Story 진입 조건
+  render-weekly.ts        # 주간 표 렌더링과 파노라마 분할
+  post-weekly.ts          # 주간 게시 잠금과 성공 기록
   story-modes.ts          # 모드, 날짜, 주말 규칙
   run-stories.ts          # 식당별 순차 처리와 실행 결과
   fetch-menu.ts          # 기숙사 식단 조회

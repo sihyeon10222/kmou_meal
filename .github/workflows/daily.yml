@@ -34,7 +34,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       TZ: Asia/Seoul
@@ -84,8 +84,8 @@ jobs:
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
 
-      # 이미지 생성 또는 실제 Instagram Story 게시
-      - name: Render or publish Story
+      # 일요일 tomorrow_full_batch는 주간 피드 3종 완료 후 Story를 실행합니다.
+      - name: Render or publish weekly feed and Stories
         env:
           RUN_MODE: ${{ steps.mode.outputs.run_mode }}
           BASE_DATE: ${{ inputs.base_date }}
@@ -114,6 +114,7 @@ jobs:
           name: story-${{ github.run_id }}
           path: |
             output/*.jpg
+            output/*.png
             output/*.json
           if-no-files-found: ignore
           retention-days: 7
