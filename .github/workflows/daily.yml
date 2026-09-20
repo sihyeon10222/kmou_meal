@@ -3,6 +3,16 @@ name: Daily KMOU Stories
 on:
   workflow_dispatch:
     inputs:
+      restaurant:
+        description: '식당 (all이면 세 식당 전체)'
+        type: choice
+        options: [all, dormitory, snack, teacher]
+        default: all
+      meal:
+        description: '끼니 (all은 전체, snack은 항상 한 장)'
+        type: choice
+        options: [all, full, breakfast, lunch, dinner]
+        default: all
       date:
         description: '식단 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
         type: string
@@ -34,6 +44,8 @@ jobs:
         env:
           DATE: ${{ inputs.date }}
           PREVIEW: ${{ inputs.preview }}
+          RESTAURANT: ${{ inputs.restaurant }}
+          MEAL: ${{ inputs.meal }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -44,6 +56,7 @@ jobs:
           args=()
           if [ -n "$DATE" ]; then args+=(--date "$DATE"); fi
           if [ "$PREVIEW" = "true" ]; then args+=(--preview); fi
+          if [ "$RESTAURANT" != "all" ]; then args+=(--restaurant "$RESTAURANT" --meal "$MEAL"); fi
           npm run story -- "${args[@]}"
       - name: Save images and receipts
         if: always()

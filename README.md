@@ -119,13 +119,12 @@ https://api.github.com/repos/sihyeon10222/kmou_meal/actions/workflows/weekly.yml
 
 ### GitHub 수동 실행
 
-**Actions → Workflow → Run workflow**에서 입력합니다.
+자동 운영에는 `daily.yml`, `weekly.yml`, `ci.yml` 세 workflow가 있습니다. 앞의 두 개가 실제 실행이고 `ci.yml`은 코드 검증 전용입니다. **Actions → Daily KMOU Stories → Run workflow**에서 전체 또는 개별 Story를 실행할 수 있습니다.
 
-- **Daily KMOU Stories**: `date`, `preview`. 오늘 전체 Story는 날짜를 비웁니다.
-- **Manual KMOU Story**: `restaurant`, `meal`, `date`, `preview`. 내일 등 다른 날은 날짜를 직접 입력합니다.
+- **Daily KMOU Stories**: `restaurant`, `meal`, `date`, `preview`. `restaurant=all`, `meal=all`이면 세 식당 전체를 실행합니다.
 - **KMOU Weekly Feed**: `restaurant`, `date` 또는 `week`, `preview`, `force`.
 
-Daily의 preview 기본값은 false, 나머지 workflow는 true입니다. 실제 게시하려면 preview를 해제합니다. 동일 계정의 게시 workflow는 하나의 대기열을 공유합니다.
+Daily의 preview 기본값은 false, Weekly의 기본값은 true입니다. 실제 게시하려면 preview를 해제합니다. 동일 계정의 게시 workflow는 하나의 대기열을 공유합니다.
 
 ```bash
 gh workflow run daily.yml --ref main -f preview=true -f date=2026-09-21
