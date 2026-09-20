@@ -17,7 +17,7 @@ test('26개 Story mode의 날짜/식당/끼니가 정확하다', () => {
 });
 
 const cases = [
-  ['today_full_batch', '2026-09-18', ['today_dormitory_full', 'today_snack', 'today_teacher_full', 'today_badaro_full']],
+  ['today_full_batch', '2026-09-18', ['today_dormitory_full', 'today_badaro_full', 'today_snack', 'today_teacher_full']],
   ['today_full_batch', '2026-09-19', ['today_dormitory_full', 'today_badaro_full']],
   ['today_full_batch', '2026-09-20', ['today_dormitory_full', 'today_badaro_full']],
 ] as const;

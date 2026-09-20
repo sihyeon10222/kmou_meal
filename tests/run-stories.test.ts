@@ -36,9 +36,9 @@ test('순차 게시와 중간 실패 후 계속 처리, 학식은 한 번만 조
     },
   };
   const results = await runStories('today_full_batch', '2026-09-18', false, deps);
-  assert.deepEqual(results.map(r => r.status), ['published', 'failed', 'published', 'published']);
+  assert.deepEqual(results.map(r => r.status), ['published', 'published', 'failed', 'published']);
   assert.equal(coopCalls, 1);
-  assert.deepEqual(events, ['today_dormitory_full', 'today_snack', 'today_teacher_full', 'today_badaro_full'].flatMap(mode => [`render:${mode}`, `start:${mode}`, `end:${mode}`]));
+  assert.deepEqual(events, ['today_dormitory_full', 'today_badaro_full', 'today_snack', 'today_teacher_full'].flatMap(mode => [`render:${mode}`, `start:${mode}`, `end:${mode}`]));
 });
 
 test('preview는 평일 empty도 렌더하며 publish를 호출하지 않는다', async () => {
@@ -48,7 +48,7 @@ test('preview는 평일 empty도 렌더하며 publish를 호출하지 않는다'
     render: async data => { sections.push(data.sections.length); assert.ok(data.sections.every(s => !s.items.length)); return 'image.jpg'; },
     publish: async () => { assert.fail('미리보기 게시 금지'); },
   });
-  assert.deepEqual(sections, [3, 4, 3, 3]);
+  assert.deepEqual(sections, [3, 3, 4, 3]);
   assert.ok(results.every(r => r.status === 'preview'));
 });
 
@@ -59,7 +59,7 @@ test('주말 학식은 개별/배치 모두 조회·렌더·게시 전 skip', as
   const batch = await runStories('today_full_batch', '2026-09-19', true, {
     fetchBadaro: async () => null, fetchDormitory: async () => null, fetchCoop: fail, render: async () => 'dorm.jpg', publish: fail,
   });
-  assert.deepEqual(batch.map(r => r.status), ['preview', 'skipped', 'skipped', 'preview']);
+  assert.deepEqual(batch.map(r => r.status), ['preview', 'preview', 'skipped', 'skipped']);
 });
 
 test('학식 조회 실패는 메뉴 없음 Story로 게시하지 않는다', async () => {
@@ -68,5 +68,5 @@ test('학식 조회 실패는 메뉴 없음 Story로 게시하지 않는다', as
     render: async data => { assert.ok(['dormitory', 'badaro'].includes(data.request.restaurant)); return 'image.jpg'; },
     publish: async () => { assert.fail('preview'); },
   });
-  assert.deepEqual(results.map(r => r.status), ['preview', 'failed', 'failed', 'preview']);
+  assert.deepEqual(results.map(r => r.status), ['preview', 'preview', 'failed', 'failed']);
 });

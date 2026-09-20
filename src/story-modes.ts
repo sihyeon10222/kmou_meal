@@ -73,7 +73,7 @@ export function resolveStoryRequest(mode: StoryMode, baseDate = seoulDate()): St
 }
 
 const batches: Record<BatchMode, readonly StoryMode[]> = {
-  today_full_batch: ['today_dormitory_full', 'today_snack', 'today_teacher_full', 'today_badaro_full'],
+  today_full_batch: ['today_dormitory_full', 'today_badaro_full', 'today_snack', 'today_teacher_full'],
 };
 
 export function resolveRun(mode: RunMode, baseDate = seoulDate()): StoryRequest[] {
