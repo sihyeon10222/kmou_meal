@@ -5,22 +5,28 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { chromium } from 'playwright';
-import { createWeeklyFetcher, weeklyRange, type WeeklyData } from '../src/weekly-data.js';
+import { createWeeklyFetcher, weeklyRange } from '../src/weekly-data.js';
 import { renderWeekly, weeklyHtml } from '../src/render-weekly.js';
 import { coopMenu } from './fixtures.js';
 
 const range = weeklyRange('2026-09-20');
 const fetcher = createWeeklyFetcher({
   coop: async () => coopMenu,
+  badaro: async date => ({ date: String(date), breakfast: ['우유/시리얼'], lunch: ['삼겹살구이*상추쌈'], dinner: ['메밀소바+유부초밥'] }),
   dormitory: async date => ({ date: String(date), breakfast: ['우유/시리얼', '셀프토스트&버터/딸기잼', '야채샐러드&소스'], lunch: ['삼겹살구이*상추쌈', '밥/김치'], dinner: ['메밀소바+유부초밥', '콩나물국'] }),
 });
-for (const kind of ['teacher', 'snack', 'dormitory'] as const) {
+for (const kind of ['combined', 'badaro', 'dormitory'] as const) {
   test(`weekly ${kind} renders every cell inside 3:4 pages`, async () => {
     const dir = await mkdtemp(join(tmpdir(), 'kmou-weekly-'));
     try {
       const data = await fetcher(kind, range);
       const result = await renderWeekly(data, dir);
-      assert.equal(result.images.length, kind === 'dormitory' ? 2 : 1);
+      assert.equal(result.images.length, 2);
+      if (kind === 'combined') {
+        assert.match(result.images[0]!, /snack-weekly.jpg$/);
+        assert.match(result.images[1]!, /teacher-weekly.jpg$/);
+        assert.equal(result.master, undefined);
+      }
       for (const path of result.images) {
         const meta = await sharp(path).metadata();
         assert.equal(meta.width, 1080); assert.equal(meta.height, 1440);
@@ -36,7 +42,7 @@ for (const kind of ['teacher', 'snack', 'dormitory'] as const) {
         const browser = await chromium.launch({ headless: true });
         try {
           const page = await browser.newPage({ viewport: { width: 2160, height: 1440 } });
-          await page.setContent(await readFile(join(dir, `${range.week}-dormitory-weekly.html`), 'utf8'));
+          await page.setContent(await readFile(join(dir, `${range.week}-${kind}-weekly.html`), 'utf8'));
           await page.evaluate(() => document.fonts.ready.then(() => undefined));
           const layout = await page.evaluate(() => {
             const days = [...document.querySelectorAll('.day')];
@@ -68,19 +74,27 @@ for (const kind of ['teacher', 'snack', 'dormitory'] as const) {
 test('empty weekday/holiday areas and HTML escaping survive rendering', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'kmou-weekly-empty-'));
   try {
-    const data = await fetcher('teacher', range);
-    data.days.forEach(day => day.sections.forEach(section => { section.items = []; }));
-    assert.equal(((await weeklyHtml(data)).match(/메뉴 없음/g) ?? []).length, 15);
+    const data = await fetcher('combined', range);
+    const page = data.pages[1]!;
+    page.days.forEach(day => day.sections.forEach(section => { section.items = []; }));
+    assert.equal(((await weeklyHtml(page)).match(/메뉴 없음/g) ?? []).length, 15);
     await renderWeekly(data, dir);
-    data.days[0]!.sections[0]!.items = ['<script>alert("test")</script>'];
-    assert.ok(!(await weeklyHtml(data)).includes('<script>'));
+    page.days[0]!.sections[0]!.items = ['<script>alert("test")</script>'];
+    assert.ok(!(await weeklyHtml(page)).includes('<script>'));
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+test('괄호 안 날짜 범위와 닫는 괄호는 한 줄 단위로 유지한다', async () => {
+  const data = await fetcher('badaro', range);
+  data.pages[0]!.days[0]!.sections[0]!.items = ['추석연휴(9/24~27)'];
+  const html = await weeklyHtml(data.pages[0]!);
+  assert.match(html, /추석연휴<span class="no-break">\(9\/24~27\)<\/span>/);
+  assert.doesNotMatch(html, /<wbr>\)/);
 });
 test('overflow fails before returning publishable images', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'kmou-weekly-overflow-'));
   try {
-    const data: WeeklyData = await fetcher('teacher', range);
-    data.days[0]!.sections[1]!.items = Array.from({ length: 90 }, () => '메뉴');
+    const data = await fetcher('combined', range);
+    data.pages[1]!.days[0]!.sections[1]!.items = Array.from({ length: 90 }, () => '메뉴');
     await assert.rejects(renderWeekly(data, dir), /초과/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

@@ -16,6 +16,7 @@ h1 { font-size: 46px; letter-spacing: -2px; margin: 14px 0 6px; font-weight: 760
 h2 { font-size: 20px; font-weight: 760; margin: 0 0 17px; white-space: nowrap; text-align: center; }
 .menu { font-size: 26px; line-height: 1.38; font-weight: 450; letter-spacing: -.5px; }
 p { margin: 0 0 .3em; word-break: keep-all; overflow-wrap: normal; }
+.no-break { white-space: nowrap; }
 .empty { opacity: .65; }
 footer { position: absolute; left: 48px; right: 48px; bottom: 0; height: 85px; display:flex; align-items:center; justify-content:space-between; font-size: 19px; border-top: 1px solid #183d4440; }
 .panorama .calendar { left: 72px; right: 72px; }

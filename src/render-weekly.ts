@@ -3,18 +3,23 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { escapeHtml, readTemplate, loadFont } from './render-assets.js';
-import type { WeeklyData } from './weekly-data.js';
+import type { WeeklyData, WeeklyPage } from './weekly-data.js';
 import type { WeeklyImages } from './run-weekly.js';
 
-const dish = (text: string) => Array.from(text, char => `${/[\p{P}\p{S}]/u.test(char) ? '<wbr>' : ''}${escapeHtml(char)}`).join('');
+const dish = (text: string) => text.split(/(\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})/u).map(part => {
+  if (/^(\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})$/u.test(part)) {
+    return `<span class="no-break">${escapeHtml(part)}</span>`;
+  }
+  return Array.from(part, char => `${/[\p{P}\p{S}]/u.test(char) && !/[)\]}]/u.test(char) ? '<wbr>' : ''}${escapeHtml(char)}`).join('');
+}).join('');
 const itemsHtml = (items: string[]) => items.length ? items.map(item => `<p>${dish(item)}</p>`).join('') : '<p class="empty">메뉴 없음</p>';
-export async function weeklyHtml(data: WeeklyData): Promise<string> {
+export async function weeklyHtml(data: WeeklyPage): Promise<string> {
   const [css, font] = await Promise.all([
     readTemplate('weekly.css'),
     loadFont(),
   ]);
-  const panorama = data.kind === 'dormitory';
-  const title = { dormitory: '기숙사 식단', teacher: '교직원 식당 식단', snack: '학식 식단' }[data.kind];
+  const panorama = data.kind === 'dormitory' || data.kind === 'badaro';
+  const title = { dormitory: '기숙사 식단', badaro: '승선생활관 식단', teacher: '교직원 식당 식단', snack: '학식 식단' }[data.kind];
   const days = data.days.map((day, index) => {
     const date = `${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))}`;
     const label = `${['월', '화', '수', '목', '금', '토', '일'][index]} ${date}`;
@@ -25,9 +30,20 @@ export async function weeklyHtml(data: WeeklyData): Promise<string> {
   return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${escapeHtml(data.days[0]!.date)} — ${escapeHtml(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span></footer></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
+  const images: string[] = [];
+  let master: string | undefined;
+  for (const page of data.pages) {
+    const rendered = await renderWeeklyPage(page, data.week, outputDir);
+    images.push(...rendered.images);
+    master = rendered.master ?? master;
+  }
+  return { images, ...(master ? { master } : {}) };
+}
+
+async function renderWeeklyPage(data: WeeklyPage, week: string, outputDir: string): Promise<WeeklyImages> {
   await mkdir(outputDir, { recursive: true });
-  const stem = resolve(outputDir, `${data.week}-${data.kind}-weekly`);
-  const panorama = data.kind === 'dormitory';
+  const stem = resolve(outputDir, `${week}-${data.kind}-weekly`);
+  const panorama = data.kind === 'dormitory' || data.kind === 'badaro';
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: panorama ? 2160 : 1080, height: 1440 }, deviceScaleFactor: 1 });

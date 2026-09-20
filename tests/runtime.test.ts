@@ -13,10 +13,17 @@ test('simple CLI resolves exact date and restaurant without exposing Story mode 
   const feed = parseCliOptions(['feed', '--preview', '--date', '2026-09-20']);
   assert.equal(feed.command === 'feed' && feed.range.monday, '2026-09-21');
   assert.equal(feed.command === 'feed' && feed.restaurant, 'all');
+  for (const restaurant of ['combined', 'badaro', 'dormitory']) {
+    const selected = parseCliOptions(['feed', '--restaurant', restaurant, '--preview', '--week', '2026-W39', '--force']);
+    assert.equal(selected.command === 'feed' && selected.restaurant, restaurant);
+    assert.equal(selected.command === 'feed' && selected.force, true);
+  }
   for (const args of [
     ['story', '--date', '2026-02-30'], ['story', 'today_full_batch'],
     ['story', '--meal', 'lunch'], ['story', '--force'], ['feed', '--meal', 'lunch'],
     ['feed', '--date', '2026-09-20', '--week', '2026-W39'],
+    ['feed', '--restaurant', 'teacher'], ['feed', '--restaurant', 'snack'],
+    ['story', '--restaurant', 'badaro'], ['story', '--restaurant', 'combined'],
   ]) assert.throws(() => parseCliOptions(args));
 });
 

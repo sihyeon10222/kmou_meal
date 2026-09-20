@@ -12,7 +12,7 @@ export interface WeeklyDependencies {
   published: (week: string, kind: WeeklyKind) => Promise<string | undefined>;
   post: (data: WeeklyData, images: string[], force: boolean) => Promise<{ mediaId: string; skipped: boolean }>;
 }
-/** Fail fast preserves Teacher → Snack → Dormitory ordering, including partial reruns. */
+/** Fail fast preserves Combined → Badaro → Dormitory ordering, including partial reruns. */
 export async function runWeekly(range: WeeklyRange, kind: WeeklyKind | 'all', preview: boolean, force: boolean, deps: WeeklyDependencies): Promise<WeeklyResult[]> {
   const results: WeeklyResult[] = [];
   for (const current of kind === 'all' ? WEEKLY_KINDS : [kind]) {

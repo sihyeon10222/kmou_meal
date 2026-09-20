@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { seoulDate, validateDate } from './dates.js';
 import { resolveManualStoryMode, type RunMode } from './story-modes.js';
-import { weeklyRange, type WeeklyKind } from './weekly-data.js';
+import { WEEKLY_KINDS, weeklyRange, type WeeklyKind } from './weekly-data.js';
 
 export interface StoryOptions { mode: RunMode; baseDate: string; preview: boolean }
 
@@ -14,13 +14,14 @@ export function parseCliOptions(args: string[]) {
     meal: { type: 'string' }, week: { type: 'string' }, force: { type: 'boolean' },
   } });
   const restaurant = values.restaurant;
-  if (!['all', 'dormitory', 'snack', 'teacher'].includes(restaurant)) throw new Error('restaurant: all / dormitory / snack / teacher');
   const date = validateDate(values.date || seoulDate());
   if (command === 'feed') {
+    if (!['all', ...WEEKLY_KINDS].includes(restaurant)) throw new Error('feed restaurant: all / combined / badaro / dormitory');
     if (values.meal !== undefined) throw new Error('--meal은 story 전용입니다.');
     if (values.date && values.week) throw new Error('--date와 --week는 하나만 지정하세요.');
     return { command, restaurant: restaurant as WeeklyKind | 'all', range: weeklyRange(date, values.week), preview: values.preview, force: values.force ?? false } as const;
   }
+  if (!['all', 'dormitory', 'snack', 'teacher'].includes(restaurant)) throw new Error('story restaurant: all / dormitory / snack / teacher');
   if (values.week !== undefined || values.force !== undefined) throw new Error('--week와 --force는 feed 전용입니다.');
   const meal = values.meal ?? 'full';
   if (!['breakfast', 'lunch', 'dinner', 'full'].includes(meal)) throw new Error('meal: breakfast / lunch / dinner / full');

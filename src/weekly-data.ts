@@ -1,16 +1,21 @@
 import { seoulDate, validateDate } from './dates.js';
-import { fetchDailyMenu } from './fetch-menu.js';
+import { fetchDailyMenu, fetchBadaroMenu } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
 import type { MenuSection } from './story-data.js';
 
-export const WEEKLY_KINDS = ['teacher', 'snack', 'dormitory'] as const;
+export const WEEKLY_KINDS = ['combined', 'badaro', 'dormitory'] as const;
 export type WeeklyKind = typeof WEEKLY_KINDS[number];
+export type WeeklyPageKind = 'snack' | 'teacher' | 'badaro' | 'dormitory';
 export interface WeeklyRange { monday: string; dates: string[]; week: string }
 export interface WeeklyData {
   kind: WeeklyKind;
   week: string;
   monday: string;
   caption: string;
+  pages: WeeklyPage[];
+}
+export interface WeeklyPage {
+  kind: WeeklyPageKind;
   days: { date: string; sections: MenuSection[] }[];
 }
 export function addDays(date: string, days: number): string {
@@ -49,35 +54,37 @@ export function weeklyCaption(kind: WeeklyKind, dates: string[]): string {
   const [year, month, day] = start.split('-').map(Number);
   const [endYear, endMonth, endDay] = end.split('-').map(Number);
   const last = `${year !== endYear ? `${endYear}년 ` : ''}${endMonth}월 ${endDay}일`;
-  const name = { teacher: '교직원 식당 식단', snack: '학식 식단', dormitory: '기숙사 식단' }[kind];
-  const tag = { teacher: '해양대교직원식당', snack: '해양대학식', dormitory: '해양대기숙사' }[kind];
+  const name = { combined: '학식 및 교직원 식당 식단', badaro: '승선생활관 식단', dormitory: '기숙사 식단' }[kind];
+  const tag = { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
   return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n#해양대학교 #${tag}`;
 }
-export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, coop: fetchCoopDailyMenu }) {
+export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, badaro: fetchBadaroMenu, coop: fetchCoopDailyMenu }) {
   const coop = new Map<string, ReturnType<typeof fetchCoopDailyMenu>>();
   return async (kind: WeeklyKind, range: WeeklyRange): Promise<WeeklyData> => {
-    const dates = range.dates.slice(0, kind === 'dormitory' ? 7 : 5);
-    const days: WeeklyData['days'] = [];
+    const dates = range.dates.slice(0, kind === 'combined' ? 5 : 7);
+    const pages: WeeklyPage[] = kind === 'combined'
+      ? [{ kind: 'snack', days: [] }, { kind: 'teacher', days: [] }]
+      : [{ kind, days: [] }];
     for (const date of dates) {
-      let sections: MenuSection[];
-      if (kind === 'dormitory') {
-        const menu = await deps.dormitory(date);
-        sections = ['breakfast', 'lunch', 'dinner'].map(key => ({
+      if (kind !== 'combined') {
+        const menu = await deps[kind](date);
+        const sections = ['breakfast', 'lunch', 'dinner'].map(key => ({
           key, label: key[0]!.toUpperCase() + key.slice(1), items: menu?.[key as 'breakfast' | 'lunch' | 'dinner'] ?? [],
         }));
+        pages[0]!.days.push({ date, sections });
       } else {
         let pending = coop.get(date);
         if (!pending) { pending = deps.coop(date); coop.set(date, pending); }
         const menu = await pending;
-        sections = kind === 'snack' ? [
+        pages[0]!.days.push({ date, sections: [
           { key: 'snack', label: '분식코너', items: menu.snackCorner.snack },
           { key: 'set-meal', label: '정식', items: menu.snackCorner.setMeal },
-        ] : ['breakfast', 'lunch', 'dinner'].map(key => ({
+        ] });
+        pages[1]!.days.push({ date, sections: ['breakfast', 'lunch', 'dinner'].map(key => ({
           key, label: key[0]!.toUpperCase() + key.slice(1), items: menu.staffRestaurant[key as 'breakfast' | 'lunch' | 'dinner'],
-        }));
+        })) });
       }
-      days.push({ date, sections });
     }
-    return { kind, week: range.week, monday: range.monday, days, caption: weeklyCaption(kind, dates) };
+    return { kind, week: range.week, monday: range.monday, pages, caption: weeklyCaption(kind, dates) };
   };
 }

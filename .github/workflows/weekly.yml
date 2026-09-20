@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       restaurant:
-        description: '식당'
+        description: '게시물 종류 (combined: 학식+교직원, badaro: 승선생활관)'
         type: choice
-        options: [all, dormitory, snack, teacher]
+        options: [all, combined, badaro, dormitory]
         default: all
       date:
         description: '기준일의 다음 주 YYYY-MM-DD (비우면 한국시간 오늘)'

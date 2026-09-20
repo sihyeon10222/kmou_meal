@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fetchDailyMenu, seoulDate } from '../src/fetch-menu.js';
+import { fetchDailyMenu, fetchBadaroMenu, seoulDate } from '../src/fetch-menu.js';
+
+test('승선생활관은 badaro API와 sys_id로 세 끼를 조회한다', async t => {
+  t.mock.method(globalThis, 'fetch', async (url: unknown, options: RequestInit) => {
+    assert.equal(url, 'https://www.kmou.ac.kr/badaro/di/diet/selectDietList.do');
+    assert.equal((options.body as URLSearchParams).get('sys_id'), 'badaro');
+    assert.equal((options.body as URLSearchParams).get('sch_date'), '2026-09-21');
+    return Response.json([{ dietSeq: 1, dietDate: '2026/09/21', dietAditCn1: '밥\n국', dietAditCn2: '중식', dietAditCn3: '석식' }]);
+  });
+  assert.deepEqual(await fetchBadaroMenu('2026-09-21'), { date: '2026/09/21', breakfast: ['밥', '국'], lunch: ['중식'], dinner: ['석식'] });
+});
 
 test('UTC 날짜가 전날이어도 한국 날짜로 요청하고 최신 조식/중식/석식을 반환한다', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {

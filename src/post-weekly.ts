@@ -22,7 +22,7 @@ export async function publishedWeekly(storage: Pick<Storage, 'readWeeklyJson'>, 
 export async function postWeekly(data: WeeklyData, images: string[], force: boolean, storage: Storage,
   instagram: Pick<InstagramPublisher, 'publishFeed' | 'verifyFeed'>, saveReceipt: (record: WeeklyRecord) => Promise<void>,
 ): Promise<{ mediaId: string; skipped: boolean }> {
-  if (images.length !== (data.kind === 'dormitory' ? 2 : 1)) throw new Error('주간 게시 이미지 수가 올바르지 않습니다.');
+  if (images.length !== 2) throw new Error('주간 게시 이미지 수가 올바르지 않습니다.');
   const path = `${data.week}/${data.kind}`;
   const record: WeeklyRecord = { week: data.week, kind: data.kind, runId: randomUUID(), status: 'preparing', startedAt: new Date().toISOString(), containerIds: [], images, caption: data.caption };
   // Atomic Storage insert also serializes CLI runs against Actions. Never expire an
