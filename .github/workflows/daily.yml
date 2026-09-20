@@ -1,5 +1,5 @@
-name: Daily KMOU Batch
-run-name: Batch · ${{ inputs.run_mode }}
+name: Daily KMOU Stories
+run-name: Daily Stories · ${{ inputs.run_mode }}
 
 on:
   workflow_dispatch:
@@ -9,10 +9,8 @@ on:
         type: choice
         required: true
         options:
-          - today_lunch_batch
-          - today_dinner_batch
-          - tomorrow_full_batch
-        default: tomorrow_full_batch
+          - today_full_batch
+        default: today_full_batch
 
       base_date:
         description: '기준 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
@@ -84,8 +82,7 @@ jobs:
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
 
-      # 일요일 tomorrow_full_batch는 주간 피드 3종 완료 후 Story를 실행합니다.
-      - name: Render or publish weekly feed and Stories
+      - name: Render or publish today's Stories
         env:
           RUN_MODE: ${{ steps.mode.outputs.run_mode }}
           BASE_DATE: ${{ inputs.base_date }}

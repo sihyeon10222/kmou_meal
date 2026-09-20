@@ -36,12 +36,3 @@ export async function runWeekly(range: WeeklyRange, kind: WeeklyKind | 'all', pr
   }
   return results;
 }
-export function requireWeeklyComplete(results: WeeklyResult[], preview: boolean): void {
-  if (results.length !== 3 || results.some((result, index) => result.kind !== WEEKLY_KINDS[index]
-    || !(preview ? ['preview'] : ['published', 'skipped']).includes(result.status))) {
-    throw new Error('주간 피드 3종이 완료되지 않아 Story 배치를 실행하지 않습니다.');
-  }
-}
-export function needsWeeklyFirst(mode: string, baseDate: string): boolean {
-  return mode === 'tomorrow_full_batch' && new Date(`${baseDate}T12:00:00Z`).getUTCDay() === 0;
-}

@@ -10,7 +10,7 @@ export const STORY_MODES = [
   'tomorrow_teacher_lunch', 'tomorrow_teacher_dinner', 'tomorrow_teacher_full',
 ] as const;
 export type StoryMode = typeof STORY_MODES[number];
-export const BATCH_MODES = ['today_lunch_batch', 'today_dinner_batch', 'tomorrow_full_batch'] as const;
+export const BATCH_MODES = ['today_full_batch'] as const;
 export type BatchMode = typeof BATCH_MODES[number];
 export type RunMode = StoryMode | BatchMode;
 export type Restaurant = 'dormitory' | 'snack' | 'teacher';
@@ -31,10 +31,10 @@ export function parseRunMode(value: string): RunMode {
 }
 
 export function resolveWorkflowMode(input?: string): RunMode {
-  return parseRunMode(input || 'tomorrow_full_batch');
+  return parseRunMode(input || 'today_full_batch');
 }
 
-export function resolveBatchMode(input = 'tomorrow_full_batch'): BatchMode {
+export function resolveBatchMode(input = 'today_full_batch'): BatchMode {
   const mode = BATCH_MODES.find(mode => mode === input);
   if (!mode) throw new Error(`지원하지 않는 배치 모드: ${input}`);
   return mode;
@@ -70,9 +70,7 @@ export function resolveStoryRequest(mode: StoryMode, baseDate = seoulDate()): St
 }
 
 const batches: Record<BatchMode, readonly StoryMode[]> = {
-  today_lunch_batch: ['today_dormitory_lunch', 'today_snack', 'today_teacher_lunch'],
-  today_dinner_batch: ['today_dormitory_dinner', 'today_teacher_dinner'],
-  tomorrow_full_batch: ['tomorrow_dormitory_full', 'tomorrow_snack', 'tomorrow_teacher_full'],
+  today_full_batch: ['today_dormitory_full', 'today_snack', 'today_teacher_full'],
 };
 
 export function resolveRun(mode: RunMode, baseDate = seoulDate()): StoryRequest[] {

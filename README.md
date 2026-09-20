@@ -28,8 +28,8 @@ cd kmou_meal
 npm ci
 npx playwright install chromium
 
-# 오늘 세 식당의 점심 이미지 생성
-npm run preview -- today_lunch_batch
+# 오늘 기숙사 전체·학식·교직원 전체 Story 이미지 생성
+npm run preview -- today_full_batch
 
 # 개별 식당 이미지 생성
 npm run preview -- today_snack
@@ -58,29 +58,29 @@ npm run preview -- <모드> [YYYY-MM-DD]  # 이미지 생성만
 npm start -- <모드> [YYYY-MM-DD]        # 실제 업로드·게시
 ```
 
-날짜는 **기준일**이며 생략하면 한국시간 오늘을 사용합니다. `today_`는 기준일, `tomorrow_`는 기준일 다음 날의 식단을 처리합니다. 모드를 생략하면 `RUN_MODE` 환경변수, 그마저 없으면 `tomorrow_full_batch`를 사용합니다.
+날짜는 **기준일**이며 생략하면 한국시간 오늘을 사용합니다. `today_`는 기준일, `tomorrow_`는 기준일 다음 날의 식단을 처리합니다. 모드를 생략하면 `RUN_MODE` 환경변수, 그마저 없으면 `today_full_batch`를 사용합니다.
 
 ```bash
 # 2026-09-18의 교직원 전체 식단 미리보기
 npm run preview -- today_teacher_full 2026-09-18
 
-# 기준일 다음 날인 2026-09-21의 세 식당 미리보기
-npm run preview -- tomorrow_full_batch 2026-09-20
+# 2026-09-21 당일 세 식당 전체 Story 미리보기
+npm run preview -- today_full_batch 2026-09-21
 
 # 오늘 기숙사 점심 실제 게시 (인증 설정 필요)
 npm start -- today_dormitory_lunch
 
-# 기본 모드: 내일 세 식당 전체 식단 실제 게시
+# 기본 모드: 오늘 세 식당 전체 식단 실제 게시
 npm start
 ```
 
-### 배치 모드 3개
+### 자동 Story 배치 모드
 
 | 모드 | 처리 순서 |
 | --- | --- |
-| `today_lunch_batch` | 오늘 기숙사 점심 → 스낵 → 교직원 점심 |
-| `today_dinner_batch` | 오늘 기숙사 저녁 → 교직원 저녁 |
-| `tomorrow_full_batch` | 내일 기숙사 전체 → 스낵 → 교직원 전체 |
+| `today_full_batch` | 오늘 기숙사 아침·점심·저녁 → 학식 → 교직원 아침·점심·저녁 |
+
+학식과 교직원 식당은 대상 날짜가 주말이면 건너뛰며, 기숙사 Story는 매일 게시합니다. 평일 공휴일에는 메뉴가 없어도 `메뉴 없음` Story를 게시합니다.
 
 ### 개별 Story 모드 18개
 
@@ -138,13 +138,12 @@ npm start -- today_dormitory_lunch
 
 GitHub 자체 `schedule` 대신 cron-job.org가 GitHub의 `workflow_dispatch` API를 호출합니다. 로컬 PC나 WebStorm이 꺼져 있어도 실행됩니다.
 
-**Daily KMOU Batch**는 기존 `daily.yml` 주소와 `run_mode` 입력을 유지합니다. 기존 cron-job.org 요청 URL·본문·예약 시각은 변경할 필요가 없습니다. 22:00 배치의 기숙사 full은 아침·점심·저녁을 모두 포함합니다. **일요일의 `tomorrow_full_batch`는 다음 주 피드 3종을 먼저 완료한 뒤 Story를 실행합니다.** 아침 단독 모드는 수동 실행용이며 자동 아침 배치는 추가하지 않습니다.
+자동화는 두 작업으로 분리합니다. **Daily KMOU Stories**는 매일 당일 Story를 처리하고, **KMOU Weekly Feed**는 일요일에 다음 주 게시물 3종을 처리합니다.
 
-| 예약 시각 (Asia/Seoul) | `run_mode` |
-| --- | --- |
-| 매일 10:00 | `today_lunch_batch` |
-| 매일 16:00 | `today_dinner_batch` |
-| 매일 22:00 | `tomorrow_full_batch` |
+| 예약 시각 (Asia/Seoul) | Workflow | 처리 내용 |
+| --- | --- | --- |
+| 매일 07:00 | `daily.yml` | 당일 기숙사 전체 → 학식 → 교직원 전체 Story |
+| 매주 일요일 18:00 | `weekly.yml` | 다음 주 교직원 → 학식 → 기숙사 게시물 |
 
 ### 1. GitHub Secrets 등록
 
@@ -159,10 +158,11 @@ npm run secrets:sync -- OWNER/REPOSITORY
 
 ### 2. cron-job.org 예약 작업 등록
 
-위 표에 맞춰 작업 3개를 등록하고 시간대를 **Asia/Seoul**로 설정합니다. 기존 작업이 있다면 수정하여 중복 등록을 피합니다.
+위 표에 맞춰 작업 2개를 등록하고 시간대를 **Asia/Seoul**로 설정합니다. 기존 작업 3개는 비활성화하거나 삭제하여 중복 게시를 막습니다.
 
 - 메서드: `POST`
-- URL: `https://api.github.com/repos/OWNER/REPOSITORY/actions/workflows/daily.yml/dispatches`
+- Story URL: `https://api.github.com/repos/OWNER/REPOSITORY/actions/workflows/daily.yml/dispatches`
+- 게시물 URL: `https://api.github.com/repos/OWNER/REPOSITORY/actions/workflows/weekly.yml/dispatches`
 - 인증: 대상 저장소의 **Actions 읽기/쓰기** 권한이 있는 fine-grained PAT
 
 요청 헤더:
@@ -174,23 +174,36 @@ Content-Type: application/json
 X-GitHub-Api-Version: 2022-11-28
 ```
 
-요청 본문 (각 작업의 `run_mode`를 표에 맞게 변경):
+매일 07:00 Story 작업의 요청 본문:
 
 ```json
 {
   "ref": "main",
   "inputs": {
-    "run_mode": "today_lunch_batch",
+    "run_mode": "today_full_batch",
     "preview_only": "false"
   }
 }
 ```
 
-예약 요청 성공은 GitHub의 실행 요청 접수를 뜻합니다. 실제 게시 성공은 Actions 로그에서 확인합니다. 자동화를 중지하려면 cron-job.org의 세 작업을 비활성화합니다.
+일요일 18:00 게시물 작업은 게시물 URL과 아래 본문을 사용합니다. `base_date`를 보내지 않으면 실행일인 일요일을 기준으로 다음 주를 자동 계산합니다.
+
+```json
+{
+  "ref": "main",
+  "inputs": {
+    "kind": "all",
+    "preview_only": "false",
+    "force_publish": "false"
+  }
+}
+```
+
+예약 요청 성공은 GitHub의 실행 요청 접수를 뜻합니다. 실제 게시 성공은 Actions 로그에서 확인합니다.
 
 ### 수동 실행과 결과 확인
 
-1. 여러 식당을 실행하려면 **Actions → Daily KMOU Batch → Run workflow**에서 `run_mode`로 세 배치 중 하나를 선택합니다.
+1. 당일 Story 전체를 실행하려면 **Actions → Daily KMOU Stories → Run workflow**에서 `today_full_batch`를 선택합니다.
 2. 한 장만 실행하려면 **Actions → Manual KMOU Story → Run workflow**에서 `day`(today/tomorrow), `restaurant`(dormitory/snack/teacher), `meal`(breakfast/lunch/dinner/full)을 선택합니다. Snack은 끼니 선택에 관계없이 네 코너를 한 장으로 생성합니다. Branch는 `main`입니다.
 3. 특정 날짜를 실행하려면 **기준 날짜 YYYY-MM-DD**에 날짜를 입력합니다. 비워두면 한국시간 오늘을 기준으로 실행합니다. `tomorrow_` 모드는 입력한 기준 날짜의 다음 날을 처리합니다.
 4. 이미지 확인만 하려면 **이미지만 생성하고 게시하지 않기**를 체크합니다. 해제하면 실제 게시합니다. Manual은 기본 체크, Batch는 기존 자동화와 동일하게 기본 해제입니다.
@@ -200,7 +213,7 @@ GitHub CLI에서도 게시 없이 실행할 수 있습니다.
 
 ```bash
 gh workflow run daily.yml --ref main \
-  -f run_mode=today_lunch_batch -f base_date=2026-09-18 -f preview_only=true
+  -f run_mode=today_full_batch -f base_date=2026-09-18 -f preview_only=true
 
 gh workflow run manual-story.yml --ref main \
   -f day=today -f restaurant=dormitory -f meal=breakfast \
@@ -211,11 +224,10 @@ gh run list --workflow daily.yml --limit 10
 
 ## 주간 피드
 
-매주 **일요일 22:00 KST**, 기존 cron-job.org 저녁 요청 하나로 아래 순서를 실행합니다. 별도 예약 작업을 추가하지 않습니다.
+매주 **일요일 18:00 KST**, 주간 게시물 전용 cron-job.org 요청으로 아래 순서를 실행합니다.
 
 ```text
 교직원 주간 피드 → 학식 주간 피드 → 기숙사 주간 캐러셀
-→ 기존 tomorrow_full_batch Story (기숙사 → 학식 → 교직원)
 ```
 
 | 종류 | 날짜 | 포함 메뉴 | 이미지 |
@@ -246,8 +258,8 @@ npm run weekly -- --week 2026-W39 --kind all
 # 수동 강제 재게시
 npm run weekly -- --week 2026-W39 --kind teacher --force
 
-# 일요일 전체 순서 미리보기: 피드 3종 → 다음 날 Story 배치
-npm run preview -- tomorrow_full_batch 2026-09-20
+# 당일 Story 3종 미리보기는 주간 피드와 별도로 실행
+npm run preview -- today_full_batch 2026-09-20
 ```
 
 `--kind`는 `teacher`, `snack`, `dormitory`, `all` 중 선택합니다. `--base-date`는 **그 날짜가 속한 주의 다음 주**를 뜻하며, 생략하면 한국시간 오늘입니다. `--week YYYY-Www`가 있으면 기준일보다 우선합니다. 연말·연초는 ISO 주차의 연도를 사용합니다. Preview는 `--force`가 있어도 게시·업로드·게시 기록 조회를 하지 않습니다.
@@ -263,7 +275,7 @@ npm run preview -- tomorrow_full_batch 2026-09-20
 3. `preview_only`: 기본 체크. 해제하면 실제 게시합니다.
 4. `force_publish`: 기본 해제. 체크하면 이미 성공한 주차·종류도 다시 게시합니다.
 
-이미지는 **Artifacts → weekly-실행번호**에서 확인합니다. 일요일 Daily Batch가 생성한 주간 이미지·마스터도 해당 배치의 Story artifact에 포함됩니다. 세 workflow는 동일한 게시 대기열을 사용합니다.
+이미지는 **Artifacts → weekly-실행번호**에서 확인합니다. Story와 주간 게시물 workflow는 동일한 게시 대기열을 사용합니다.
 
 ```bash
 gh workflow run weekly.yml --ref main \

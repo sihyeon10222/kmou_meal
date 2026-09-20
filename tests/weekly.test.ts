@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { weeklyRange, weeklyCaption, createWeeklyFetcher, type WeeklyData, type WeeklyKind } from '../src/weekly-data.js';
-import { runWeekly, requireWeeklyComplete, needsWeeklyFirst, type WeeklyDependencies } from '../src/run-weekly.js';
+import { runWeekly, type WeeklyDependencies } from '../src/run-weekly.js';
 import { postWeekly, publishedWeekly, type WeeklyRecord } from '../src/post-weekly.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
 
@@ -56,7 +56,6 @@ test('sequential feed order, normal dedup and force override', async () => {
   const events: string[] = []; const deps = runDeps(events);
   deps.published = async (_, kind) => kind === 'teacher' ? 'old' : undefined;
   const results = await runWeekly(range, 'all', false, false, deps);
-  requireWeeklyComplete(results, false);
   assert.deepEqual(results.map(result => result.status), ['skipped', 'published', 'published']);
   assert.deepEqual(events.filter(value => value.startsWith('post:')), ['post:snack', 'post:dormitory']);
   events.length = 0;
@@ -67,21 +66,14 @@ test('preview never initializes posting or dedup storage, even with force', asyn
   const events: string[] = []; const deps = runDeps(events);
   deps.published = deps.post = async () => { throw new Error('must not call'); };
   const results = await runWeekly(range, 'all', true, true, deps);
-  requireWeeklyComplete(results, true);
   assert.equal(results.length, 3);
 });
-test('failed feed stops later feeds and prevents Story stage', async () => {
+test('failed feed stops later feeds', async () => {
   const events: string[] = []; const deps = runDeps(events);
   deps.post = async value => { events.push(`post:${value.kind}`); if (value.kind === 'snack') throw new Error('failed'); return { mediaId: 'id', skipped: false }; };
   const results = await runWeekly(range, 'all', false, false, deps);
   assert.deepEqual(results.map(result => result.status), ['published', 'failed']);
-  assert.throws(() => requireWeeklyComplete(results, false));
   assert.ok(!events.some(event => event.includes('dormitory')));
-});
-test('only Sunday tomorrow_full_batch invokes weekly preflight', () => {
-  assert.equal(needsWeeklyFirst('tomorrow_full_batch', '2026-09-20'), true);
-  for (const mode of ['today_lunch_batch', 'today_dinner_batch', 'tomorrow_dormitory_full']) assert.equal(needsWeeklyFirst(mode, '2026-09-20'), false);
-  assert.equal(needsWeeklyFirst('tomorrow_full_batch', '2026-09-19'), false);
 });
 function services() {
   const records = new Map<string, unknown>(); const events: string[] = [];

@@ -17,13 +17,9 @@ test('18개 Story mode의 날짜/식당/끼니가 정확하다', () => {
 });
 
 const cases = [
-  ['today_lunch_batch', '2026-09-18', ['today_dormitory_lunch', 'today_snack', 'today_teacher_lunch']],
-  ['today_dinner_batch', '2026-09-18', ['today_dormitory_dinner', 'today_teacher_dinner']],
-  ['tomorrow_full_batch', '2026-09-17', ['tomorrow_dormitory_full', 'tomorrow_snack', 'tomorrow_teacher_full']],
-  ['today_lunch_batch', '2026-09-19', ['today_dormitory_lunch']],
-  ['today_dinner_batch', '2026-09-19', ['today_dormitory_dinner']],
-  ['tomorrow_full_batch', '2026-09-18', ['tomorrow_dormitory_full']],
-  ['tomorrow_full_batch', '2026-09-20', ['tomorrow_dormitory_full', 'tomorrow_snack', 'tomorrow_teacher_full']],
+  ['today_full_batch', '2026-09-18', ['today_dormitory_full', 'today_snack', 'today_teacher_full']],
+  ['today_full_batch', '2026-09-19', ['today_dormitory_full']],
+  ['today_full_batch', '2026-09-20', ['today_dormitory_full']],
 ] as const;
 for (const [mode, date, expected] of cases) test(`${date} ${mode}: 대상 날짜 기준 배치 순서`, () => {
   assert.deepEqual(resolveRun(mode, date).filter(r => !r.skip).map(r => r.mode), expected);
@@ -36,10 +32,10 @@ test('평일 공휴일도 skip하지 않는다; 주말 개별 학식도 skip한�
 
 test('기본 모드와 개별 모드 해석', () => {
   assert.equal(resolveWorkflowMode('today_teacher_full'), 'today_teacher_full');
-  assert.equal(resolveWorkflowMode(), 'tomorrow_full_batch');
+  assert.equal(resolveWorkflowMode(), 'today_full_batch');
 });
 
-test('Manual 선택의 모든 조합은 18개 모드로 해석하고 Batch는 세 모드만 허용한다', () => {
+test('Manual 선택의 모든 조합은 18개 모드로 해석하고 자동 Batch는 오늘 전체만 허용한다', () => {
   const modes = new Set<string>();
   for (const day of ['today', 'tomorrow']) {
     for (const restaurant of ['dormitory', 'snack', 'teacher']) {
