@@ -1,8 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
-import { escapeHtml } from './render-story.js';
+import { escapeHtml, readTemplate, loadFont } from './render-assets.js';
 import type { WeeklyData } from './weekly-data.js';
 import type { WeeklyImages } from './run-weekly.js';
 
@@ -10,8 +10,8 @@ const dish = (text: string) => Array.from(text, char => `${/[\p{P}\p{S}]/u.test(
 const itemsHtml = (items: string[]) => items.length ? items.map(item => `<p>${dish(item)}</p>`).join('') : '<p class="empty">메뉴 없음</p>';
 export async function weeklyHtml(data: WeeklyData): Promise<string> {
   const [css, font] = await Promise.all([
-    readFile(new URL('../templates/weekly.css', import.meta.url), 'utf8'),
-    readFile(new URL('../assets/fonts/NotoSansKR.ttf', import.meta.url)),
+    readTemplate('weekly.css'),
+    loadFont(),
   ]);
   const panorama = data.kind === 'dormitory';
   const title = { dormitory: '기숙사 식단', teacher: '교직원 식당 식단', snack: '학식 식단' }[data.kind];
@@ -22,7 +22,7 @@ export async function weeklyHtml(data: WeeklyData): Promise<string> {
       return `<section class="cell ${section.key}"><h2>${section.label}</h2><div class="menu">${itemsHtml(section.items)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font.toString('base64')}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${escapeHtml(data.days[0]!.date)} — ${escapeHtml(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span><span>제작: 인공지능공학부 김시현</span></footer></main></body></html>`;
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${escapeHtml(data.days[0]!.date)} — ${escapeHtml(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span><span>제작: 인공지능공학부 김시현</span></footer></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
   await mkdir(outputDir, { recursive: true });

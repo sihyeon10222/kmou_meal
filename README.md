@@ -4,6 +4,8 @@
 
 ## 작동 흐름
 
+실행 코드는 CLI 입력 해석(`main.ts`, `story-options.ts`, `weekly-cli.ts`), 실행 구성(`stories.ts`, `weekly.ts`), 순차 처리 정책(`run-stories.ts`, `run-weekly.ts`)으로 나뉩니다. 게시 서비스는 `publishing-services.ts`에서 실행당 한 번만 초기화하며 미리보기에서는 초기화하지 않습니다. 조회 재시도는 `fetch-menu-text.ts`, 공통 렌더링 자산은 `render-assets.ts`에서 관리합니다. GitHub Actions의 Node.js·Chromium 설치는 공통 로컬 action을 사용합니다.
+
 ```text
 cron-job.org → GitHub Actions → KMOU 식단 조회·정리
 → Playwright 이미지 렌더링 → Supabase Storage → Instagram API 게시
@@ -268,7 +270,7 @@ npm run preview -- today_full_batch 2026-09-20
 
 ### GitHub Actions 수동 실행
 
-**Actions → Manual KMOU Weekly Feed → Run workflow**에서 다음을 선택합니다.
+**Actions → KMOU Weekly Feed → Run workflow**에서 다음을 선택합니다.
 
 1. `kind`: 종류 또는 `all`
 2. `base_date`: 기준일, 또는 `target_week`: 정확한 대상 ISO 주차
@@ -286,7 +288,7 @@ gh workflow run weekly.yml --ref main \
 
 - 주간 피드만 **ISO 주차 + 종류**별 성공 기록으로 중복을 막습니다. 수동 실행도 동일하며 `--force`로 재게시할 수 있습니다. 기존 Story 재게시 정책은 그대로입니다.
 - Supabase `_weekly/주차/종류/success.json`은 실제 Instagram publish 성공 후에만 저장합니다. 기록 조회 실패나 손상은 미게시로 간주하지 않고 실패 종료합니다.
-- 피드 하나가 실패하면 후속 피드와 Story를 실행하지 않습니다. 재실행은 성공한 피드를 skip하고 남은 피드를 순서대로 처리합니다. 세 종류가 모두 게시 또는 성공 기록에 따른 skip 상태여야 Story로 넘어갑니다.
+- 피드 하나가 실패하면 후속 피드를 실행하지 않습니다. 재실행은 성공한 피드를 skip하고 남은 피드를 순서대로 처리합니다. 매일 Story 실행은 주간 피드와 독립적입니다.
 - `_weekly/주차/종류/lock.json`으로 로컬·Actions 동시 게시를 방지합니다. 정상 종료와 명확한 미게시 실패 때 해제하며, 네트워크 응답 유실·성공 기록 저장 실패·실행 강제 종료 시 잠금을 유지합니다. `force`도 진행 중인 잠금을 무시하지 않습니다.
 - 잠금이 남으면 Instagram 계정과 `output/*.publish.json`, Supabase `attempts/`의 container/media ID를 확인합니다. **이미 게시된 것이 확인되면 해당 게시 성공 기록을 `success.json`으로 복구한 후**, 게시되지 않았음이 확인되면 그대로, Supabase Storage에서 해당 `lock.json`을 삭제하고 재실행합니다. 결과가 불확실한 동안 잠금을 삭제하지 않습니다.
 - 기존과 동일하게 `24/2207006`만 새 container로 한 번 복구합니다. 그 외 API 오류·네트워크 오류를 자동 재게시하지 않습니다.

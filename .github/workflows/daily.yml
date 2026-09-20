@@ -42,16 +42,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # Node.js 설정
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          package-manager-cache: false
-
-      # npm 패키지 설치
-      - name: Install dependencies
-        run: npm ci
+      - name: Set up runtime
+        uses: ./.github/actions/setup
 
       # cron-job.org 또는 수동 실행에서 전달된 Story mode 확인
       - name: Determine story mode
@@ -74,9 +66,6 @@ jobs:
             echo "- Started (KST): $(date '+%Y-%m-%d %H:%M:%S %Z')"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Playwright용 Chromium 설치
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
 
       # 타입 검사 + 테스트 + 빌드
       - name: Check and build

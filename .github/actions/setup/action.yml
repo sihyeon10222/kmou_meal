@@ -1,0 +1,13 @@
+name: Set up KMOU runtime
+description: Install Node.js, dependencies and the rendering browser
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        package-manager-cache: false
+    - run: npm ci
+      shell: bash
+    - run: npx playwright install --with-deps chromium
+      shell: bash

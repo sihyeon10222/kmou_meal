@@ -1,4 +1,6 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { escapeHtml, readTemplate, loadFont } from './render-assets.js';
+export { escapeHtml } from './render-assets.js';
 import { resolve } from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright';
 import type { MenuSection, StoryRenderData } from './story-data.js';
@@ -9,9 +11,6 @@ const JPEG_QUALITY = 94;
 const MIN_MENU_FONT_SIZE = 28;
 const MAX_MENU_FONT_SIZE = 60;
 const OVERFLOW_TOLERANCE = 1;
-const HTML_ESCAPES: Record<string, string> = {
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-};
 
 interface TemplateAssets {
   template: string;
@@ -24,28 +23,11 @@ export interface StoryRenderer {
   close(): Promise<void>;
 }
 
-// The bundled font is immutable and large; retain its encoded form across renders.
-let fontBase64: Promise<string> | undefined;
-
-function readTemplate(name: string): Promise<string> {
-  return readFile(new URL(`../templates/${name}`, import.meta.url), 'utf8');
-}
-
 async function loadTemplateAssets(): Promise<TemplateAssets> {
-  fontBase64 ??= readFile(new URL('../assets/fonts/NotoSansKR.ttf', import.meta.url))
-    .then(font => font.toString('base64'))
-    .catch(error => {
-      fontBase64 = undefined;
-      throw error;
-    });
   const [template, css, font] = await Promise.all([
-    readTemplate('story.html'), readTemplate('shared.css'), fontBase64,
+    readTemplate('story.html'), readTemplate('shared.css'), loadFont(),
   ]);
   return { template, css, font };
-}
-
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, char => HTML_ESCAPES[char] ?? char);
 }
 
 function sectionHtml(section: MenuSection): string {

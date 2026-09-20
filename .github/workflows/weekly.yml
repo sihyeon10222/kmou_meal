@@ -44,15 +44,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          package-manager-cache: false
-      - name: Install dependencies
-        run: npm ci
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Set up runtime
+        uses: ./.github/actions/setup
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
       - name: Render or publish weekly feed
