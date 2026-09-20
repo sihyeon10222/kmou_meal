@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       restaurant:
-        description: '식당 (all이면 세 식당 전체)'
+        description: '식당 (all이면 네 식당 전체, badaro는 승선생활관)'
         type: choice
-        options: [all, dormitory, snack, teacher]
+        options: [all, dormitory, snack, teacher, badaro]
         default: all
       meal:
         description: '끼니 (all은 전체, snack은 항상 한 장)'
@@ -54,6 +54,7 @@ jobs:
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
         run: |
           args=()
+          if [ "$MEAL" = "all" ]; then MEAL=full; fi
           if [ -n "$DATE" ]; then args+=(--date "$DATE"); fi
           if [ "$PREVIEW" = "true" ]; then args+=(--preview); fi
           if [ "$RESTAURANT" != "all" ]; then args+=(--restaurant "$RESTAURANT" --meal "$MEAL"); fi

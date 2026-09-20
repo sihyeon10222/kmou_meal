@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { fetchDailyMenu } from './fetch-menu.js';
+import { fetchDailyMenu, fetchBadaroMenu } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
 import { createStoryRenderer } from './render-story.js';
 import { runStories } from './run-stories.js';
@@ -15,6 +15,7 @@ export async function executeStories({ mode, baseDate, preview }: StoryOptions) 
   const renderer = createStoryRenderer();
   const results = await runStories(mode, baseDate, preview, {
     fetchDormitory: fetchDailyMenu,
+    fetchBadaro: fetchBadaroMenu,
     fetchCoop: fetchCoopDailyMenu,
     render: async data => {
       const image = await renderer.render(data);

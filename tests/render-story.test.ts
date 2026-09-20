@@ -34,10 +34,10 @@ test('메뉴 항목은 제목처럼 임의로 굵어지지 않고 조합 기호 
   assert.match(load(html)('.meal.snack .dish').html() ?? '', /메밀소바<wbr>\+유부초밥<wbr>\/김치/);
 });
 
-test('18개 모드의 실제 DOM은 요청한 영역만 포함하고 영어 끼니를 유지한다', async () => {
+test('26개 모드의 실제 DOM은 요청한 영역만 포함하고 영어 끼니를 유지한다', async () => {
   for (const mode of STORY_MODES) {
     const request = resolveStoryRequest(mode, '2026-09-17');
-    const data = request.restaurant === 'dormitory' ? dormitoryStory(request, null) : coopStory(request, coopMenu);
+    const data = (request.restaurant === 'dormitory' || request.restaurant === 'badaro') ? dormitoryStory(request, null) : coopStory(request, coopMenu);
     const $ = load(await storyHtml(data));
     assert.equal($('.meal').length, request.restaurant === 'snack' ? 4 : request.scope !== 'full' ? 1 : 3);
     assert.equal($('.meal.breakfast').length, request.restaurant !== 'snack' && ['full', 'breakfast'].includes(request.scope) ? 1 : 0);
@@ -67,9 +67,9 @@ test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패
   const directory = await mkdtemp(join(tmpdir(), 'kmou-render-'));
   const renderer = createStoryRenderer();
   try {
-    for (const mode of ['today_snack', 'today_teacher_full', 'today_dormitory_full', 'today_dormitory_breakfast', 'today_teacher_breakfast'] as const) {
+    for (const mode of ['today_snack', 'today_teacher_full', 'today_dormitory_full', 'today_dormitory_breakfast', 'today_teacher_breakfast', 'today_badaro_full', 'today_badaro_breakfast', 'today_badaro_lunch', 'today_badaro_dinner'] as const) {
       const request = resolveStoryRequest(mode, '2026-09-18');
-      const data = request.restaurant === 'dormitory'
+      const data = (request.restaurant === 'dormitory' || request.restaurant === 'badaro')
         ? dormitoryStory(request, { date: '2026/09/18', breakfast: ['아침 메뉴'], lunch: Array(8).fill('점심 메뉴'), dinner: Array(5).fill('저녁 메뉴') })
         : coopStory(request, coopMenu);
       const file = await renderer.render(data, directory);

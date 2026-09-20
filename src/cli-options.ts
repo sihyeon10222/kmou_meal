@@ -21,7 +21,7 @@ export function parseCliOptions(args: string[]) {
     if (values.date && values.week) throw new Error('--date와 --week는 하나만 지정하세요.');
     return { command, restaurant: restaurant as WeeklyKind | 'all', range: weeklyRange(date, values.week), preview: values.preview, force: values.force ?? false } as const;
   }
-  if (!['all', 'dormitory', 'snack', 'teacher'].includes(restaurant)) throw new Error('story restaurant: all / dormitory / snack / teacher');
+  if (!['all', 'dormitory', 'badaro', 'snack', 'teacher'].includes(restaurant)) throw new Error('story restaurant: all / dormitory / badaro / snack / teacher');
   if (values.week !== undefined || values.force !== undefined) throw new Error('--week와 --force는 feed 전용입니다.');
   const meal = values.meal ?? 'full';
   if (!['breakfast', 'lunch', 'dinner', 'full'].includes(meal)) throw new Error('meal: breakfast / lunch / dinner / full');

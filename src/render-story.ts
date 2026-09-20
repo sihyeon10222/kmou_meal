@@ -49,7 +49,7 @@ function buildStoryHtml(data: StoryRenderData, assets: TemplateAssets, layout: s
   const replacements: Record<string, string> = {
     FONT: assets.font,
     CSS: `${assets.css}\n${layout}`,
-    CLASSES: `${request.restaurant} ${request.scope}`,
+    CLASSES: `${request.restaurant === 'badaro' ? 'badaro dormitory' : request.restaurant} ${request.scope}`,
     DATE: escapeHtml(request.dateLabel),
     TITLE: escapeHtml(request.title),
     SECTIONS: sections.map(sectionHtml).join(''),
@@ -59,7 +59,7 @@ function buildStoryHtml(data: StoryRenderData, assets: TemplateAssets, layout: s
 
 export async function storyHtml(data: StoryRenderData): Promise<string> {
   const [assets, layout] = await Promise.all([
-    loadTemplateAssets(), readTemplate(`${data.request.restaurant}.css`),
+    loadTemplateAssets(), readTemplate(`${data.request.restaurant === 'badaro' ? 'dormitory' : data.request.restaurant}.css`),
   ]);
   return buildStoryHtml(data, assets, layout);
 }
@@ -175,7 +175,7 @@ export function createStoryRenderer(): StoryRenderer {
       if (closed) throw new Error('Story 렌더러가 이미 종료되었습니다.');
       assets ??= loadTemplateAssets();
       const restaurant = data.request.restaurant;
-      const layout = layouts.get(restaurant) ?? readTemplate(`${restaurant}.css`);
+      const layout = layouts.get(restaurant) ?? readTemplate(`${restaurant === 'badaro' ? 'dormitory' : restaurant}.css`);
       layouts.set(restaurant, layout);
       const [common, restaurantCss] = await Promise.all([assets, layout]);
       const html = buildStoryHtml(data, common, restaurantCss);

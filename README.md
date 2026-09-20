@@ -1,6 +1,6 @@
 # KMOU Meal
 
-국립한국해양대학교 기숙사·학식 스낵코너·교직원 식당 식단을 Instagram Story와 주간 게시물로 만드는 Node.js + TypeScript 프로젝트입니다. 승선생활관 식단은 주간 게시물로 제공합니다.
+국립한국해양대학교 기숙사·학식 스낵코너·교직원 식당 식단을 Instagram Story와 주간 게시물로 만드는 Node.js + TypeScript 프로젝트입니다. 승선생활관도 매일 Story와 주간 게시물로 제공합니다.
 
 ## 실행 명령
 
@@ -12,13 +12,13 @@
 | `npm run feed` | 다음 주 게시물 전체 실제 게시 |
 
 `npm start`도 `npm run story`와 같습니다. 별도 옵션이 없으면 모든 식당을 처리합니다.
-기숙사·교직원 전체 Story는 아침·점심·저녁을 한 장에, 학식은 네 코너를 한 장에 표시합니다.
+기숙사·승선생활관·교직원 전체 Story는 아침·점심·저녁을 한 장에, 학식은 네 코너를 한 장에 표시합니다.
 
 ### 공통 옵션
 
 | 옵션 | 값 / 의미 |
 | --- | --- |
-| `--restaurant` | Story: `all`(기본), `dormitory`, `snack`, `teacher`. Feed: `all`(기본), `combined`, `badaro`, `dormitory` |
+| `--restaurant` | Story: `all`(기본), `dormitory`, `badaro`, `snack`, `teacher`. Feed: `all`(기본), `combined`, `badaro`, `dormitory` |
 | `--date YYYY-MM-DD` | Story는 해당 날짜, feed는 해당 날짜 기준 다음 주. 생략하면 한국시간 오늘 |
 | `--preview` | 이미지 생성만 수행. Supabase·Instagram·게시 기록에 접근하지 않음 |
 
@@ -29,6 +29,12 @@ Feed 전용: `--week YYYY-Www`로 정확한 주차를 지정하거나 `--force`�
 ```bash
 # 기숙사 저녁 미리보기
 npm run preview -- --restaurant dormitory --meal dinner
+
+# 승선생활관 아침·점심·저녁 전체 Story 미리보기
+npm run preview -- --restaurant badaro
+
+# 승선생활관 아침 Story 실제 게시
+npm run story -- --restaurant badaro --meal breakfast
 
 # 특정 날짜의 교직원 전체 Story 미리보기
 npm run preview -- --restaurant teacher --date 2026-09-21
@@ -68,10 +74,10 @@ WebStorm에서 **File → Open**으로 프로젝트를 열고 **View → Tool Wi
 
 | 시간 (Asia/Seoul) | Workflow | 순서 |
 | --- | --- | --- |
-| 매일 07:00 | `daily.yml` | 당일 기숙사 전체 → 학식 → 교직원 전체 Story |
+| 매일 07:00 | `daily.yml` | 당일 기숙사 전체 → 학식 → 교직원 전체 → 승선생활관 전체 Story |
 | 일요일 18:00 | `weekly.yml` | 다음 주 학식+교직원 → 승선생활관 → 기숙사 게시물 |
 
-Story와 게시물은 독립적으로 실행됩니다. 주말 대상 학식·교직원 Story는 건너뛰고 기숙사는 매일 처리합니다. 평일 공휴일은 메뉴가 없으면 메뉴 없음 이미지를 만듭니다. API 오류를 메뉴 없음으로 처리하지 않습니다.
+Story와 게시물은 독립적으로 실행됩니다. 주말 대상 학식·교직원 Story는 건너뛰고 기숙사·승선생활관은 매일 처리합니다. 평일 공휴일은 메뉴가 없으면 메뉴 없음 이미지를 만듭니다. API 오류를 메뉴 없음으로 처리하지 않습니다.
 
 cron-job.org에서 시간대를 **Asia/Seoul**, 메서드를 **POST**로 설정합니다. 기존 세 예약 작업은 비활성화하고 위 두 작업만 사용합니다.
 
@@ -124,7 +130,7 @@ https://api.github.com/repos/sihyeon10222/kmou_meal/actions/workflows/weekly.yml
 
 자동 운영에는 `daily.yml`, `weekly.yml`, `ci.yml` 세 workflow가 있습니다. 앞의 두 개가 실제 실행이고 `ci.yml`은 코드 검증 전용입니다. **Actions → Daily KMOU Stories → Run workflow**에서 전체 또는 개별 Story를 실행할 수 있습니다.
 
-- **Daily KMOU Stories**: `restaurant`, `meal`, `date`, `preview`. `restaurant=all`, `meal=all`이면 세 식당 전체를 실행합니다.
+- **Daily KMOU Stories**: `restaurant`, `meal`, `date`, `preview`. `restaurant=all`, `meal=all`이면 네 식당 전체를 실행합니다.
 - **KMOU Weekly Feed**: `restaurant` (`all`, `combined`, `badaro`, `dormitory`), `date` 또는 `week`, `preview`, `force`.
 
 Daily의 preview 기본값은 false, Weekly의 기본값은 true입니다. 실제 게시하려면 preview를 해제합니다. 동일 계정의 게시 workflow는 하나의 대기열을 공유합니다.

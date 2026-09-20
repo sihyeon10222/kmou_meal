@@ -13,6 +13,7 @@ export interface RunResult {
 }
 export interface RunDependencies {
   fetchDormitory: typeof fetchDailyMenu;
+  fetchBadaro: typeof fetchDailyMenu;
   fetchCoop: typeof fetchCoopDailyMenu;
   render: (data: StoryRenderData) => Promise<string>;
   publish: (data: StoryRenderData, imagePath: string) => Promise<unknown>;
@@ -33,6 +34,8 @@ export async function runStories(mode: RunMode, baseDate: string, preview: boole
     try {
       const data = request.restaurant === 'dormitory'
         ? dormitoryStory(request, await deps.fetchDormitory(request.targetDate))
+        : request.restaurant === 'badaro'
+        ? dormitoryStory(request, await deps.fetchBadaro(request.targetDate))
         : coopStory(request, await (coop ??= deps.fetchCoop(request.targetDate)));
       result.imagePath = await deps.render(data);
       if (!preview) await deps.publish(data, result.imagePath);

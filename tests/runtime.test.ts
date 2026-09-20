@@ -23,8 +23,16 @@ test('simple CLI resolves exact date and restaurant without exposing Story mode 
     ['story', '--meal', 'lunch'], ['story', '--force'], ['feed', '--meal', 'lunch'],
     ['feed', '--date', '2026-09-20', '--week', '2026-W39'],
     ['feed', '--restaurant', 'teacher'], ['feed', '--restaurant', 'snack'],
-    ['story', '--restaurant', 'badaro'], ['story', '--restaurant', 'combined'],
+    ['story', '--restaurant', 'combined'],
   ]) assert.throws(() => parseCliOptions(args));
+});
+
+test('승선생활관 Story는 전체와 개별 끼니를 선택할 수 있다', () => {
+  for (const meal of ['full', 'breakfast', 'lunch', 'dinner']) {
+    const options = parseCliOptions(['story', '--restaurant', 'badaro', '--meal', meal, '--preview']);
+    assert.equal(options.command === 'story' && options.mode, `today_badaro_${meal}`);
+    assert.equal(options.preview, true);
+  }
 });
 
 test('publishing initialization is lazy and its failure is shared across callers', async () => {
