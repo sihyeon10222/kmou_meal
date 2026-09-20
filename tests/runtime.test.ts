@@ -1,20 +1,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseStoryOptions } from '../src/story-options.js';
+import { parseCliOptions } from '../src/cli-options.js';
 import { createPublishingServices } from '../src/publishing-services.js';
 
-test('CLI values override environment while preview remains explicit', () => {
-  const env = { RUN_MODE: 'today_snack', BASE_DATE: '2026-09-21' };
-  const args = ['--preview', 'today_dormitory_full', '2026-09-18'];
-  assert.deepEqual(parseStoryOptions(args, env), {
-    mode: 'today_dormitory_full', baseDate: '2026-09-18', preview: true,
+test('simple CLI resolves exact date and restaurant without exposing Story mode names', () => {
+  assert.deepEqual(parseCliOptions(['story', '--preview', '--restaurant', 'dormitory', '--date', '2026-09-18']), {
+    command: 'story', mode: 'today_dormitory_full', baseDate: '2026-09-18', preview: true,
   });
-  assert.equal(args[0], '--preview');
-  assert.deepEqual(parseStoryOptions([], env), { mode: 'today_snack', baseDate: '2026-09-21', preview: false });
-  assert.equal(parseStoryOptions([], { BASE_DATE: '2026-09-21' }).mode, 'today_full_batch');
-  assert.throws(() => parseStoryOptions(['today_full_batch', '2026-02-30'], {}));
-  assert.throws(() => parseStoryOptions(['today_full_batch', '2026-09-21', 'extra'], {}));
-  assert.throws(() => parseStoryOptions(['today_lunch_batch'], {}));
+  const batch = parseCliOptions(['story', '--date', '2026-09-21']);
+  assert.equal(batch.command === 'story' && batch.mode, 'today_full_batch');
+  assert.equal(batch.preview, false);
+  const feed = parseCliOptions(['feed', '--preview', '--date', '2026-09-20']);
+  assert.equal(feed.command === 'feed' && feed.range.monday, '2026-09-21');
+  assert.equal(feed.command === 'feed' && feed.restaurant, 'all');
+  for (const args of [
+    ['story', '--date', '2026-02-30'], ['story', 'today_full_batch'],
+    ['story', '--meal', 'lunch'], ['story', '--force'], ['feed', '--meal', 'lunch'],
+    ['feed', '--date', '2026-09-20', '--week', '2026-W39'],
+  ]) assert.throws(() => parseCliOptions(args));
 });
 
 test('publishing initialization is lazy and its failure is shared across callers', async () => {

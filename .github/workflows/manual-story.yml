@@ -1,40 +1,29 @@
 name: Manual KMOU Story
-run-name: Story · ${{ inputs.day }} · ${{ inputs.restaurant }} · ${{ inputs.meal }}
 
 on:
   workflow_dispatch:
     inputs:
-      day:
-        description: '날짜 (today: 기준일 / tomorrow: 기준일 다음 날)'
-        type: choice
-        required: true
-        options: [today, tomorrow]
-        default: today
       restaurant:
-        description: '식당 (dormitory: 기숙사 / snack: 학식 / teacher: 교직원)'
+        description: '식당'
         type: choice
-        required: true
         options: [dormitory, snack, teacher]
         default: dormitory
       meal:
-        description: '끼니 (snack은 선택과 관계없이 네 코너 한 장)'
+        description: '끼니 (snack은 항상 한 장)'
         type: choice
-        required: true
-        options: [breakfast, lunch, dinner, full]
+        options: [full, breakfast, lunch, dinner]
         default: full
-      base_date:
-        description: '기준 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
+      date:
+        description: '식단 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
         type: string
-        required: false
-      preview_only:
-        description: '이미지만 생성하고 게시하지 않기'
+      preview:
+        description: '이미지만 생성'
         type: boolean
         default: true
 
 permissions:
   contents: read
 
-# Both workflows share a publication queue for the same Instagram account.
 concurrency:
   group: kmou-instagram-story
   cancel-in-progress: false
@@ -42,40 +31,21 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       TZ: Asia/Seoul
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      - name: Set up runtime
-        uses: ./.github/actions/setup
-      - name: Determine story mode
-        id: mode
-        shell: bash
-        env:
-          INPUT_KIND: manual
-          INPUT_DAY: ${{ inputs.day }}
-          INPUT_RESTAURANT: ${{ inputs.restaurant }}
-          INPUT_MEAL: ${{ inputs.meal }}
-          INPUT_BASE_DATE: ${{ inputs.base_date }}
-        run: |
-          mode=$(node --import tsx scripts/resolve-workflow-mode.ts)
-          echo "run_mode=$mode" >> "$GITHUB_OUTPUT"
-          {
-            echo "### KMOU Story Run"
-            echo ""
-            echo "- Mode: $mode"
-            echo "- Base date: ${INPUT_BASE_DATE:-한국시간 오늘}"
-            echo "- Started (KST): $(date '+%Y-%m-%d %H:%M:%S %Z')"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
-      - name: Render or publish Story
+      - name: Render or publish Stories
+        shell: bash
         env:
-          RUN_MODE: ${{ steps.mode.outputs.run_mode }}
-          BASE_DATE: ${{ inputs.base_date }}
-          PREVIEW_ONLY: ${{ inputs.preview_only }}
+          DATE: ${{ inputs.date }}
+          PREVIEW: ${{ inputs.preview }}
+          RESTAURANT: ${{ inputs.restaurant }}
+          MEAL: ${{ inputs.meal }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -83,18 +53,20 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
         run: |
-          if [ "$PREVIEW_ONLY" = "true" ]; then
-            npm run preview
-          else
-            npm start
-          fi
-      - name: Save rendered image and posting receipt
+          args=()
+          if [ -n "$DATE" ]; then args+=(--date "$DATE"); fi
+          if [ "$PREVIEW" = "true" ]; then args+=(--preview); fi
+          args+=(--restaurant "$RESTAURANT")
+          args+=(--meal "$MEAL")
+          npm run story -- "${args[@]}"
+      - name: Save images and receipts
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: story-${{ github.run_id }}
           path: |
             output/*.jpg
+            output/*.png
             output/*.json
           if-no-files-found: ignore
           retention-days: 7

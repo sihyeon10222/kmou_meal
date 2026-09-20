@@ -5,7 +5,7 @@ import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
 import { createStoryRenderer } from './render-story.js';
 import { runStories } from './run-stories.js';
 import { createPublishingServices } from './publishing-services.js';
-import type { StoryOptions } from './story-options.js';
+import type { StoryOptions } from './cli-options.js';
 import { postStory } from './post-story.js';
 
 export async function executeStories({ mode, baseDate, preview }: StoryOptions) {

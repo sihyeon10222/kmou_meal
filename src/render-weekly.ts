@@ -22,7 +22,7 @@ export async function weeklyHtml(data: WeeklyData): Promise<string> {
       return `<section class="cell ${section.key}"><h2>${section.label}</h2><div class="menu">${itemsHtml(section.items)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${escapeHtml(data.days[0]!.date)} — ${escapeHtml(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span><span>제작: 인공지능공학부 김시현</span></footer></main></body></html>`;
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${escapeHtml(data.days[0]!.date)} — ${escapeHtml(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span></footer></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
   await mkdir(outputDir, { recursive: true });

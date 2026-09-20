@@ -19,7 +19,7 @@ test('메뉴 HTML escape, 공통 헤더/푸터, 부분 empty 영역 유지', asy
   assert.ok(html.includes('&lt;script&gt;'));
   assert.equal($('.dinner .menu').text(), '메뉴 없음');
   assert.equal($('h1').text(), '9/18 금요일기숙사 식단');
-  assert.match($('footer').text(), /@kmou_meal.*김시현/);
+  assert.equal($('footer').text(), '@kmou_meal');
 });
 
 test('메뉴 항목은 제목처럼 임의로 굵어지지 않고 조합 기호 앞에서 줄바꿈할 수 있다', async () => {

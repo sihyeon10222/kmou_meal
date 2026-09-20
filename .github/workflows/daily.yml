@@ -1,24 +1,13 @@
 name: Daily KMOU Stories
-run-name: Daily Stories · ${{ inputs.run_mode }}
 
 on:
   workflow_dispatch:
     inputs:
-      run_mode:
-        description: '자동화 / 수동 순차 게시 batch'
-        type: choice
-        required: true
-        options:
-          - today_full_batch
-        default: today_full_batch
-
-      base_date:
-        description: '기준 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
+      date:
+        description: '식단 날짜 YYYY-MM-DD (비우면 한국시간 오늘)'
         type: string
-        required: false
-
-      preview_only:
-        description: '이미지만 생성하고 게시하지 않기'
+      preview:
+        description: '이미지만 생성'
         type: boolean
         default: false
 
@@ -33,67 +22,30 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     env:
       TZ: Asia/Seoul
-
     steps:
-      # 저장소 코드 가져오기
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Set up runtime
-        uses: ./.github/actions/setup
-
-      # cron-job.org 또는 수동 실행에서 전달된 Story mode 확인
-      - name: Determine story mode
-        id: mode
-        shell: bash
-        env:
-          INPUT_KIND: batch
-          INPUT_MODE: ${{ inputs.run_mode }}
-          INPUT_BASE_DATE: ${{ inputs.base_date }}
-        run: |
-          mode=$(node --import tsx scripts/resolve-workflow-mode.ts)
-          echo "run_mode=$mode" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "### KMOU Story Run"
-            echo ""
-            echo "- Event: ${{ github.event_name }}"
-            echo "- Mode: $mode"
-            echo "- Base date: ${INPUT_BASE_DATE:-한국시간 오늘}"
-            echo "- Started (KST): $(date '+%Y-%m-%d %H:%M:%S %Z')"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-
-      # 타입 검사 + 테스트 + 빌드
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
-
-      - name: Render or publish today's Stories
+      - name: Render or publish Stories
+        shell: bash
         env:
-          RUN_MODE: ${{ steps.mode.outputs.run_mode }}
-          BASE_DATE: ${{ inputs.base_date }}
-          PREVIEW_ONLY: ${{ inputs.preview_only }}
-
+          DATE: ${{ inputs.date }}
+          PREVIEW: ${{ inputs.preview }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
-
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-
         run: |
-          if [ "$PREVIEW_ONLY" = "true" ]; then
-            npm run preview
-          else
-            npm start
-          fi
-
-      # 생성 이미지와 게시 결과를 GitHub Artifact로 7일간 저장
-      - name: Save rendered image and posting receipt
+          args=()
+          if [ -n "$DATE" ]; then args+=(--date "$DATE"); fi
+          if [ "$PREVIEW" = "true" ]; then args+=(--preview); fi
+          npm run story -- "${args[@]}"
+      - name: Save images and receipts
         if: always()
         uses: actions/upload-artifact@v7
         with:
