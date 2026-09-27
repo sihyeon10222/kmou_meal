@@ -25,8 +25,13 @@ test('순차 게시와 중간 실패 후 계속 처리, 학식은 한 번만 조
   const events: string[] = [];
   let coopCalls = 0;
   const deps: RunDependencies = {
-    fetchBadaro: async () => null, fetchDormitory: async () => null,
-    fetchCoop: async () => { coopCalls++; return emptyCoop; },
+    fetchBadaro: async date => ({ date: String(date), breakfast: ['조식'], lunch: [], dinner: [] }),
+    fetchDormitory: async date => ({ date: String(date), breakfast: ['조식'], lunch: [], dinner: [] }),
+    fetchCoop: async () => { coopCalls++; return {
+      ...emptyCoop,
+      snackCorner: { ...emptyCoop.snackCorner, snack: ['분식'] },
+      staffRestaurant: { ...emptyCoop.staffRestaurant, lunch: ['중식'] },
+    }; },
     render: async data => { events.push(`render:${data.request.mode}`); return 'image.jpg'; },
     publish: async data => {
       events.push(`start:${data.request.mode}`);
@@ -69,4 +74,14 @@ test('학식 조회 실패는 메뉴 없음 Story로 게시하지 않는다', as
     publish: async () => { assert.fail('preview'); },
   });
   assert.deepEqual(results.map(r => r.status), ['preview', 'preview', 'failed', 'failed']);
+});
+
+test('실제 게시에서 빈 식단은 이미지 생성과 게시를 막는다', async () => {
+  const results = await runStories('today_badaro_full', '2026-09-30', false, {
+    fetchBadaro: async () => null, fetchDormitory: async () => null, fetchCoop: async () => emptyCoop,
+    render: async () => assert.fail('빈 식단 이미지 생성 금지'),
+    publish: async () => assert.fail('빈 식단 게시 금지'),
+  });
+  assert.equal(results[0]?.status, 'failed');
+  assert.match(results[0]?.error ?? '', /게시할 식단이 없습니다/);
 });

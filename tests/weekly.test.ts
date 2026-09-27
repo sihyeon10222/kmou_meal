@@ -81,6 +81,17 @@ test('failed feed stops later feeds', async () => {
   assert.deepEqual(results.map(result => result.status), ['published', 'failed']);
   assert.ok(!events.some(event => event.includes('dormitory')));
 });
+
+test('실제 주간 게시에서 빈 날짜는 렌더와 게시 전에 실패한다', async () => {
+  const deps = runDeps([]);
+  deps.fetch = async kind => ({ ...data(kind), pages: [{ kind: 'badaro', days: [
+    { date: range.monday, sections: [{ key: 'breakfast', label: 'Breakfast', items: [] }] },
+  ] }] });
+  deps.render = async () => assert.fail('빈 주간 식단 렌더 금지');
+  const result = await runWeekly(range, 'badaro', false, false, deps);
+  assert.equal(result[0]?.status, 'failed');
+  assert.match(result[0]?.error ?? '', /게시할 식단이 없습니다/);
+});
 function services() {
   const records = new Map<string, unknown>(); const events: string[] = [];
   const storage = {

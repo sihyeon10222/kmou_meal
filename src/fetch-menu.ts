@@ -64,11 +64,14 @@ async function fetchResidenceMenu(site: 'dorm' | 'badaro', date: Date | string):
   }
   const candidates = data.filter((item) => item.dietDate === targetDate);
   if (candidates.length === 0) return null;
-  const latest = candidates.reduce((a, b) => b.dietSeq > a.dietSeq ? b : a);
+  // A newer row may update only one meal. Keep the latest populated value for each meal.
+  candidates.sort((a, b) => b.dietSeq - a.dietSeq);
+  const latestMeal = (key: 'dietAditCn1' | 'dietAditCn2' | 'dietAditCn3') =>
+    cleanMenu(candidates.find((item) => cleanMenu(item[key]).length > 0)?.[key]);
   return {
-    date: latest.dietDate,
-    breakfast: cleanMenu(latest.dietAditCn1),
-    lunch: cleanMenu(latest.dietAditCn2),
-    dinner: cleanMenu(latest.dietAditCn3),
+    date: targetDate,
+    breakfast: latestMeal('dietAditCn1'),
+    lunch: latestMeal('dietAditCn2'),
+    dinner: latestMeal('dietAditCn3'),
   };
 }

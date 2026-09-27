@@ -32,11 +32,13 @@ export async function runStories(mode: RunMode, baseDate: string, preview: boole
       continue;
     }
     try {
-      const data = request.restaurant === 'dormitory'
-        ? dormitoryStory(request, await deps.fetchDormitory(request.targetDate))
-        : request.restaurant === 'badaro'
-        ? dormitoryStory(request, await deps.fetchBadaro(request.targetDate))
+      const data = request.restaurant === 'dormitory' || request.restaurant === 'badaro'
+        ? dormitoryStory(request, await (request.restaurant === 'dormitory'
+          ? deps.fetchDormitory(request.targetDate) : deps.fetchBadaro(request.targetDate)))
         : coopStory(request, await (coop ??= deps.fetchCoop(request.targetDate)));
+      if (!preview && data.sections.every(section => section.items.length === 0)) {
+        throw new Error(`${request.targetDate} ${request.restaurant}: 게시할 식단이 없습니다.`);
+      }
       result.imagePath = await deps.render(data);
       if (!preview) await deps.publish(data, result.imagePath);
       result.status = preview ? 'preview' : 'published';

@@ -12,6 +12,16 @@ test('승선생활관은 badaro API와 sys_id로 세 끼를 조회한다', async
   assert.deepEqual(await fetchBadaroMenu('2026-09-21'), { date: '2026/09/21', breakfast: ['밥', '국'], lunch: ['중식'], dinner: ['석식'] });
 });
 
+test('최신 행에 석식만 있을 때 조식과 중식은 이전 행에서 가져온다', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json([
+    { dietSeq: 25238, dietDate: '2026/09/30', dietAditCn1: '밥\n얼큰소고기국', dietAditCn2: '김가루주먹밥', dietAditCn3: '비빔막국수' },
+    { dietSeq: 25239, dietDate: '2026/09/30', dietAditCn3: '비빔칼국수' },
+  ]));
+  assert.deepEqual(await fetchBadaroMenu('2026-09-30'), {
+    date: '2026/09/30', breakfast: ['밥', '얼큰소고기국'], lunch: ['김가루주먹밥'], dinner: ['비빔칼국수'],
+  });
+});
+
 test('UTC 날짜가 전날이어도 한국 날짜로 요청하고 최신 조식/중식/석식을 반환한다', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => {
     assert.equal(options.method, 'POST');

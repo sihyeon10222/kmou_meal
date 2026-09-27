@@ -22,6 +22,12 @@ export async function runWeekly(range: WeeklyRange, kind: WeeklyKind | 'all', pr
       if (existing) { result.status = 'skipped'; result.mediaId = existing; }
       else {
         const data = await deps.fetch(current, range);
+        if (!preview) {
+          const missing = data.pages.flatMap(page => page.days
+            .filter(day => day.sections.every(section => section.items.length === 0))
+            .map(day => `${page.kind} ${day.date}`));
+          if (missing.length) throw new Error(`게시할 식단이 없습니다: ${missing.join(', ')}`);
+        }
         result.images = (await deps.render(data)).images;
         if (preview) result.status = 'preview';
         else {
