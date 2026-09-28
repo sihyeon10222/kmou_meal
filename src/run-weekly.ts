@@ -1,44 +1,50 @@
 import { safeError } from './config.js';
 import { WEEKLY_KINDS, type WeeklyKind, type WeeklyRange, type WeeklyData } from './weekly-data.js';
+import { publishableWeekly, weeklyMenuHash } from './weekly-snapshot.js';
+import type { WeeklyRecord } from './post-weekly.js';
 
 export interface WeeklyImages { images: string[]; master?: string }
 export interface WeeklyResult {
-  kind: WeeklyKind; week: string; status: 'published' | 'skipped' | 'preview' | 'failed';
-  images?: string[]; mediaId?: string; error?: string;
+  kind: WeeklyKind; week: string; status: 'published' | 'replaced' | 'skipped' | 'deferred' | 'preview' | 'failed';
+  images?: string[]; mediaId?: string; replacedMediaId?: string; error?: string;
 }
 export interface WeeklyDependencies {
   fetch: (kind: WeeklyKind, range: WeeklyRange) => Promise<WeeklyData>;
   render: (data: WeeklyData) => Promise<WeeklyImages>;
-  published: (week: string, kind: WeeklyKind) => Promise<string | undefined>;
-  post: (data: WeeklyData, images: string[], force: boolean) => Promise<{ mediaId: string; skipped: boolean }>;
+  published: (week: string, kind: WeeklyKind) => Promise<WeeklyRecord | undefined>;
+  post: (data: WeeklyData, images: string[], force: boolean) => Promise<{ mediaId: string; skipped: boolean; replacedMediaId?: string }>;
 }
-/** Fail fast preserves Combined → Badaro → Dormitory ordering, including partial reruns. */
+/** Process each feed independently so a failed kind can be retried after the others publish. */
 export async function runWeekly(range: WeeklyRange, kind: WeeklyKind | 'all', preview: boolean, force: boolean, deps: WeeklyDependencies): Promise<WeeklyResult[]> {
   const results: WeeklyResult[] = [];
   for (const current of kind === 'all' ? WEEKLY_KINDS : [kind]) {
     const result: WeeklyResult = { kind: current, week: range.week, status: 'failed' };
     try {
       const existing = !preview && !force ? await deps.published(range.week, current) : undefined;
-      if (existing) { result.status = 'skipped'; result.mediaId = existing; }
+      if (existing && !existing.menuHash) { result.status = 'skipped'; result.mediaId = existing.mediaId!; }
       else {
-        const data = await deps.fetch(current, range);
-        if (!preview) {
-          const missing = data.pages.flatMap(page => page.days
-            .filter(day => day.sections.every(section => section.items.length === 0))
-            .map(day => `${page.kind} ${day.date}`));
-          if (missing.length) throw new Error(`게시할 식단이 없습니다: ${missing.join(', ')}`);
+        const fetched = await deps.fetch(current, range);
+        const data = publishableWeekly(fetched);
+        if (!data) {
+          result.status = 'deferred';
+          if (existing) result.mediaId = existing.mediaId!;
+          results.push(result); continue;
         }
-        result.images = (await deps.render(data)).images;
-        if (preview) result.status = 'preview';
-        else {
-          const posted = await deps.post(data, result.images, force);
-          result.mediaId = posted.mediaId;
-          result.status = posted.skipped ? 'skipped' : 'published';
+        if (existing?.menuHash === weeklyMenuHash(data)) {
+          result.status = 'skipped'; result.mediaId = existing.mediaId!;
+        } else {
+          result.images = (await deps.render(data)).images;
+          if (preview) result.status = 'preview';
+          else {
+            const posted = await deps.post(data, result.images, force);
+            result.mediaId = posted.mediaId;
+            if (posted.replacedMediaId) result.replacedMediaId = posted.replacedMediaId;
+            result.status = posted.skipped ? 'skipped' : posted.replacedMediaId ? 'replaced' : 'published';
+          }
         }
       }
     } catch (error) { result.error = safeError(error); }
     results.push(result);
-    if (result.status === 'failed') break;
   }
   return results;
 }

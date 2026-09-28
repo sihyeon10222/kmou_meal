@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 import { createWeeklyFetcher, weeklyRange } from '../src/weekly-data.js';
 import { renderWeekly, weeklyHtml } from '../src/render-weekly.js';
 import { coopMenu } from './fixtures.js';
+import { publishableWeekly } from '../src/weekly-snapshot.js';
 
 const range = weeklyRange('2026-09-20');
 const fetcher = createWeeklyFetcher({
@@ -81,6 +82,20 @@ test('empty weekday/holiday areas and HTML escaping survive rendering', async ()
     await renderWeekly(data, dir);
     page.days[0]!.sections[0]!.items = ['<script>alert("test")</script>'];
     assert.ok(!(await weeklyHtml(page)).includes('<script>'));
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+test('one available restaurant renders a single combined feed image', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'kmou-weekly-single-'));
+  try {
+    const data = await fetcher('combined', range);
+    data.pages[1]!.days.forEach(day => day.sections.forEach(section => { section.items = []; }));
+    const prepared = publishableWeekly(data)!;
+    assert.deepEqual(prepared.pages.map(page => page.kind), ['snack']);
+    assert.match(prepared.caption, /학식 식단/);
+    assert.doesNotMatch(prepared.caption, /교직원/);
+    const rendered = await renderWeekly(prepared, dir);
+    assert.equal(rendered.images.length, 1);
+    assert.match(rendered.images[0]!, /snack-weekly.jpg$/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 test('괄호 안 날짜 범위와 닫는 괄호는 한 줄 단위로 유지한다', async () => {

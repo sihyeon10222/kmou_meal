@@ -48,14 +48,18 @@ export function weeklyRange(baseDate = seoulDate(), targetWeek?: string): Weekly
   }
   return { monday, week: isoWeek(monday), dates: Array.from({ length: 7 }, (_, index) => addDays(monday, index)) };
 }
-export function weeklyCaption(kind: WeeklyKind, dates: string[]): string {
+export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPage?: WeeklyPageKind): string {
   const start = dates[0]!;
   const end = dates.at(-1)!;
   const [year, month, day] = start.split('-').map(Number);
   const [endYear, endMonth, endDay] = end.split('-').map(Number);
   const last = `${year !== endYear ? `${endYear}년 ` : ''}${endMonth}월 ${endDay}일`;
-  const name = { combined: '학식 및 교직원 식당 식단', badaro: '승선생활관 식단', dormitory: '기숙사 식단' }[kind];
-  const tag = { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
+  const name = onlyCombinedPage === 'snack' ? '학식 식단'
+    : onlyCombinedPage === 'teacher' ? '교직원 식당 식단'
+    : { combined: '학식 및 교직원 식당 식단', badaro: '승선생활관 식단', dormitory: '기숙사 식단' }[kind];
+  const tag = onlyCombinedPage === 'snack' ? '해양대학식'
+    : onlyCombinedPage === 'teacher' ? '해양대교직원식당'
+    : { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
   return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n#해양대학교 #${tag}`;
 }
 export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, badaro: fetchBadaroMenu, coop: fetchCoopDailyMenu }) {

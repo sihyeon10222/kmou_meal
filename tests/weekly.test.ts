@@ -2,11 +2,23 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { weeklyRange, weeklyCaption, createWeeklyFetcher, type WeeklyData, type WeeklyKind } from '../src/weekly-data.js';
 import { runWeekly, type WeeklyDependencies } from '../src/run-weekly.js';
-import { postWeekly, publishedWeekly, type WeeklyRecord } from '../src/post-weekly.js';
+import { markWeeklySourceEmpty, postWeekly, publishedWeekly, type WeeklyRecord } from '../src/post-weekly.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
+import { publishableWeekly, weeklyMenuHash } from '../src/weekly-snapshot.js';
+import { notifyWeeklyReplacements } from '../src/weekly-notifications.js';
 
 const range = weeklyRange('2026-09-20');
-function data(kind: WeeklyKind = 'combined'): WeeklyData { return { kind, week: range.week, monday: range.monday, pages: [], caption: 'caption' }; }
+function data(kind: WeeklyKind = 'combined'): WeeklyData {
+  const page = (pageKind: WeeklyData['pages'][number]['kind']) => ({ kind: pageKind, days: [
+    { date: range.monday, sections: [{ key: 'lunch', label: 'Lunch', items: ['비빔밥'] }] },
+  ] });
+  return { kind, week: range.week, monday: range.monday,
+    pages: kind === 'combined' ? [page('snack'), page('teacher')] : [page(kind)], caption: 'caption' };
+}
+function oldRecord(kind: WeeklyKind, mediaId = 'old'): WeeklyRecord {
+  return { week: range.week, kind, runId: 'legacy', status: 'published', startedAt: '2026-09-20T00:00:00Z',
+    containerIds: [], images: [], caption: 'caption', mediaId };
+}
 test('current week Monday–Saturday, following week Sunday, and ISO boundaries', () => {
   assert.equal(range.monday, '2026-09-21'); assert.equal(range.week, '2026-W39');
   assert.equal(range.dates.at(-1), '2026-09-27');
@@ -65,7 +77,7 @@ function runDeps(events: string[]): WeeklyDependencies {
 }
 test('sequential feed order, normal dedup and force override', async () => {
   const events: string[] = []; const deps = runDeps(events);
-  deps.published = async (_, kind) => kind === 'combined' ? 'old' : undefined;
+  deps.published = async (_, kind) => kind === 'combined' ? oldRecord(kind) : undefined;
   const results = await runWeekly(range, 'all', false, false, deps);
   assert.deepEqual(results.map(result => result.status), ['skipped', 'published', 'published']);
   assert.deepEqual(events.filter(value => value.startsWith('post:')), ['post:badaro', 'post:dormitory']);
@@ -79,23 +91,48 @@ test('preview never initializes posting or dedup storage, even with force', asyn
   const results = await runWeekly(range, 'all', true, true, deps);
   assert.equal(results.length, 3);
 });
-test('failed feed stops later feeds', async () => {
+test('failed feed does not stop later feeds; rerun skips published kinds', async () => {
   const events: string[] = []; const deps = runDeps(events);
-  deps.post = async value => { events.push(`post:${value.kind}`); if (value.kind === 'badaro') throw new Error('failed'); return { mediaId: 'id', skipped: false }; };
-  const results = await runWeekly(range, 'all', false, false, deps);
-  assert.deepEqual(results.map(result => result.status), ['published', 'failed']);
-  assert.ok(!events.some(event => event.includes('dormitory')));
+  const published = new Map<WeeklyKind, WeeklyRecord>();
+  let badaroReady = false;
+  deps.published = async (_, kind) => published.get(kind);
+  deps.post = async value => {
+    events.push(`post:${value.kind}`);
+    if (value.kind === 'badaro' && !badaroReady) throw new Error('failed');
+    published.set(value.kind, { ...oldRecord(value.kind, 'id'), menuHash: weeklyMenuHash(value) });
+    return { mediaId: 'id', skipped: false };
+  };
+  const first = await runWeekly(range, 'all', false, false, deps);
+  assert.deepEqual(first.map(result => result.status), ['published', 'failed', 'published']);
+  events.length = 0;
+  badaroReady = true;
+  const second = await runWeekly(range, 'all', false, false, deps);
+  assert.deepEqual(second.map(result => result.status), ['skipped', 'published', 'skipped']);
+  assert.deepEqual(events, ['fetch:combined', 'fetch:badaro', 'render:badaro', 'post:badaro', 'fetch:dormitory']);
 });
 
-test('실제 주간 게시에서 빈 날짜는 렌더와 게시 전에 실패한다', async () => {
+test('메뉴가 전혀 없으면 해당 게시물만 대기한다', async () => {
   const deps = runDeps([]);
   deps.fetch = async kind => ({ ...data(kind), pages: [{ kind: 'badaro', days: [
     { date: range.monday, sections: [{ key: 'breakfast', label: 'Breakfast', items: [] }] },
   ] }] });
   deps.render = async () => assert.fail('빈 주간 식단 렌더 금지');
   const result = await runWeekly(range, 'badaro', false, false, deps);
-  assert.equal(result[0]?.status, 'failed');
-  assert.match(result[0]?.error ?? '', /게시할 식단이 없습니다/);
+  assert.equal(result[0]?.status, 'deferred');
+});
+test('통합 게시물은 메뉴 있는 식당 한 장만 올리고 다른 두 게시물도 처리한다', async () => {
+  const events: string[] = []; const deps = runDeps(events);
+  deps.fetch = async kind => kind === 'combined'
+    ? { ...data(kind), pages: [
+      { kind: 'snack', days: [{ date: '2026-10-02', sections: [{ key: 'snack', label: '분식코너', items: [] }] }] },
+      { kind: 'teacher', days: [{ date: '2026-10-02', sections: [{ key: 'lunch', label: '중식', items: ['백반'] }] }] },
+    ] } : data(kind);
+  const result = await runWeekly(range, 'all', false, false, deps);
+  assert.deepEqual(result.map(item => item.status), ['published', 'published', 'published']);
+  assert.deepEqual(events.filter(event => event.startsWith('post:')), ['post:combined', 'post:badaro', 'post:dormitory']);
+  const prepared = publishableWeekly(await deps.fetch('combined', range));
+  assert.deepEqual(prepared?.pages.map(page => page.kind), ['teacher']);
+  assert.match(prepared?.caption ?? '', /교직원 식당 식단/);
 });
 function services() {
   const records = new Map<string, unknown>(); const events: string[] = [];
@@ -146,7 +183,7 @@ test('upload failure releases lock; post-publish verification failure preserves 
   assert.ok(!s.records.has(`${range.week}/combined/lock.json`));
   s.instagram.verifyFeed = async () => { throw new Error('verification'); };
   await assert.rejects(postWeekly(data(), ['a', 'b'], false, s.storage, s.instagram, async () => {}), /verification/);
-  assert.equal(await publishedWeekly(s.storage, range.week, 'combined'), 'media');
+  assert.equal((await publishedWeekly(s.storage, range.week, 'combined'))?.mediaId, 'media');
   assert.ok(!s.records.has(`${range.week}/combined/lock.json`));
 });
 test('success save failure retains media ID and lock for reconciliation', async () => {
@@ -163,4 +200,90 @@ test('success save failure retains media ID and lock for reconciliation', async 
 test('corrupted success records fail closed', async () => {
   const s = services(); s.records.set(`${range.week}/combined/success.json`, { status: 'failed', mediaId: 'oops' });
   await assert.rejects(publishedWeekly(s.storage, range.week, 'combined'), /올바르지/);
+});
+
+test('normalized menu changes trigger replacement but whitespace does not', async () => {
+  const s = services(); let next = 0;
+  s.instagram.publishFeed = async (_urls, _caption, onContainer, beforePublish) => {
+    await onContainer('container'); await beforePublish(); return `media-${++next}`;
+  };
+  const first = data('combined');
+  const firstResult = await postWeekly(first, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  assert.equal(firstResult.mediaId, 'media-1');
+  const whitespace = structuredClone(first);
+  whitespace.pages[0]!.days[0]!.sections[0]!.items[0] = ' 비빔밥  ';
+  assert.equal(weeklyMenuHash(first), weeklyMenuHash(whitespace));
+  assert.equal((await postWeekly(whitespace, ['a', 'b'], false, s.storage, s.instagram, async () => {})).skipped, true);
+  const added = structuredClone(first);
+  added.pages[0]!.days[0]!.sections[0]!.items.push('국');
+  const second = await postWeekly(added, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  assert.equal(second.replacedMediaId, 'media-1');
+  const edited = structuredClone(added);
+  edited.pages[0]!.days[0]!.sections[0]!.items[0] = '볶음밥';
+  await postWeekly(edited, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  const removed = structuredClone(edited);
+  removed.pages[0]!.days[0]!.sections[0]!.items.pop();
+  await postWeekly(removed, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  const saved = await publishedWeekly(s.storage, range.week, 'combined');
+  assert.equal(saved?.mediaId, 'media-4');
+  assert.deepEqual(saved?.supersededMediaIds, ['media-1', 'media-2', 'media-3']);
+  assert.equal(saved?.pendingNotifications?.length, 3);
+});
+
+test('single restaurant feed is replaced by two-page carousel when other restaurant appears', async () => {
+  const s = services(); let next = 0;
+  s.instagram.publishFeed = async (urls, _caption, onContainer, beforePublish) => {
+    assert.equal(urls.length, ++next);
+    await onContainer('container'); await beforePublish(); return `media-${next}`;
+  };
+  const one = publishableWeekly({ ...data('combined'), pages: [
+    data('combined').pages[0]!,
+    { kind: 'teacher', days: [{ date: range.monday, sections: [{ key: 'lunch', label: 'Lunch', items: [] }] }] },
+  ] })!;
+  assert.equal(one.pages.length, 1);
+  await postWeekly(one, ['a'], false, s.storage, s.instagram, async () => {});
+  const two = publishableWeekly(data('combined'))!;
+  const result = await postWeekly(two, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  assert.equal(result.replacedMediaId, 'media-1');
+  assert.equal(result.mediaId, 'media-2');
+});
+
+test('replacement notification retries without reposting or duplicating issue comment', async () => {
+  const s = services();
+  const notice = { runId: 'revision-2', week: range.week, kind: 'combined' as const, oldMediaId: 'old', newMediaId: 'new' };
+  s.records.set(`${range.week}/combined/success.json`, { ...oldRecord('combined', 'new'), pendingNotifications: [notice] });
+  const original = globalThis.fetch;
+  const comments: string[] = []; let failComment = true;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (url.includes('/issues?')) return Response.json([{ number: 7, title: 'KMOU 주간 게시물 교체 알림' }]);
+    if (url.includes('/issues/7/comments') && method === 'GET') return Response.json(comments.map(body => ({ body })));
+    if (url.includes('/issues/7/comments') && method === 'POST') {
+      if (failComment) { failComment = false; return Response.json({}, { status: 503 }); }
+      comments.push(JSON.parse(String(init?.body)).body); return Response.json({ id: 1 });
+    }
+    throw new Error(`unexpected ${method} ${url}`);
+  };
+  try {
+    await assert.rejects(notifyWeeklyReplacements(s.storage, range.week, ['combined'], 'token', 'owner/repo'));
+    assert.equal((await publishedWeekly(s.storage, range.week, 'combined'))?.pendingNotifications?.length, 1);
+    await notifyWeeklyReplacements(s.storage, range.week, ['combined'], 'token', 'owner/repo');
+    assert.equal(comments.length, 1);
+    assert.match(comments[0]!, /@sihyeon10222/);
+    assert.equal((await publishedWeekly(s.storage, range.week, 'combined'))?.pendingNotifications?.length, 0);
+    await notifyWeeklyReplacements(s.storage, range.week, ['combined'], 'token', 'owner/repo');
+    assert.equal(comments.length, 1);
+  } finally { globalThis.fetch = original; }
+});
+
+test('all menus removed after publication queues one manual removal notice', async () => {
+  const s = services();
+  await postWeekly(data('badaro'), ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  await markWeeklySourceEmpty(s.storage, range.week, 'badaro');
+  await markWeeklySourceEmpty(s.storage, range.week, 'badaro');
+  const saved = await publishedWeekly(s.storage, range.week, 'badaro');
+  assert.equal(saved?.sourceEmptyNotified, true);
+  assert.equal(saved?.pendingNotifications?.length, 1);
+  assert.equal(saved?.pendingNotifications?.[0]?.newMediaId, undefined);
 });
