@@ -8,8 +8,8 @@
 | --- | --- |
 | `npm run preview` | 오늘 Story 전체 미리보기, 업로드 없음 |
 | `npm run story` | 오늘 Story 전체 실제 게시 |
-| `npm run feed -- --preview` | 다음 주 게시물 전체 미리보기 |
-| `npm run feed` | 다음 주 게시물 전체 실제 게시 |
+| `npm run feed -- --preview` | 대상 주 게시물 전체 미리보기 |
+| `npm run feed` | 대상 주 게시물 전체 실제 게시 |
 
 `npm start`도 `npm run story`와 같습니다. 별도 옵션이 없으면 모든 식당을 처리합니다.
 기숙사·승선생활관·교직원 전체 Story는 아침·점심·저녁을 한 장에, 학식은 네 코너를 한 장에 표시합니다.
@@ -19,7 +19,7 @@
 | 옵션 | 값 / 의미 |
 | --- | --- |
 | `--restaurant` | Story: `all`(기본), `dormitory`, `badaro`, `snack`, `teacher`. Feed: `all`(기본), `combined`, `badaro`, `dormitory` |
-| `--date YYYY-MM-DD` | Story는 해당 날짜, feed는 해당 날짜 기준 다음 주. 생략하면 한국시간 오늘 |
+| `--date YYYY-MM-DD` | Story는 해당 날짜, feed는 월~토에 해당 주·일요일에 다음 주. 생략하면 한국시간 오늘 |
 | `--preview` | 이미지 생성만 수행. Supabase·Instagram·게시 기록에 접근하지 않음 |
 
 Story 전용: `--meal full|breakfast|lunch|dinner`. 기본은 `full`이며 끼니를 선택할 때는 식당도 지정합니다. Snack은 항상 네 코너 한 장입니다.
@@ -45,10 +45,10 @@ npm run story -- --restaurant snack --date 2026-09-21
 # 특정 주차의 기숙사 게시물 미리보기
 npm run feed -- --preview --restaurant dormitory --week 2026-W39
 
-# 다음 주 학식+교직원 통합 게시물 실제 게시
+# 대상 주 학식+교직원 통합 게시물 실제 게시
 npm run feed -- --restaurant combined
 
-# 다음 주 승선생활관 게시물 미리보기
+# 대상 주 승선생활관 게시물 미리보기
 npm run feed -- --preview --restaurant badaro
 ```
 

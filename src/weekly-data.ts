@@ -31,7 +31,7 @@ export function isoWeek(date: string): string {
   const week = Math.ceil(((value.getTime() - start.getTime()) / 86400000 + 1) / 7);
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
-/** Default/base date means the following calendar week. Explicit YYYY-Www overrides it. */
+/** Monday–Saturday use their calendar week; Sunday uses the following week. Explicit YYYY-Www overrides it. */
 export function weeklyRange(baseDate = seoulDate(), targetWeek?: string): WeeklyRange {
   validateDate(baseDate);
   let monday: string;
@@ -44,7 +44,7 @@ export function weeklyRange(baseDate = seoulDate(), targetWeek?: string): Weekly
     if (isoWeek(monday) !== targetWeek) throw new Error('존재하지 않는 ISO 주차입니다.');
   } else {
     const weekday = new Date(`${baseDate}T12:00:00Z`).getUTCDay() || 7;
-    monday = addDays(baseDate, 8 - weekday);
+    monday = addDays(baseDate, weekday === 7 ? 1 : 1 - weekday);
   }
   return { monday, week: isoWeek(monday), dates: Array.from({ length: 7 }, (_, index) => addDays(monday, index)) };
 }

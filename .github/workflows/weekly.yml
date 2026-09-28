@@ -9,7 +9,7 @@ on:
         options: [all, combined, badaro, dormitory]
         default: all
       date:
-        description: '기준일의 다음 주 YYYY-MM-DD (비우면 한국시간 오늘)'
+        description: '월~토는 해당 주, 일요일은 다음 주의 기준일 YYYY-MM-DD (비우면 한국시간 오늘)'
         type: string
       preview:
         description: '이미지만 생성'

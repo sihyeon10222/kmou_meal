@@ -7,10 +7,15 @@ import { coopMenu, emptyCoop } from './fixtures.js';
 
 const range = weeklyRange('2026-09-20');
 function data(kind: WeeklyKind = 'combined'): WeeklyData { return { kind, week: range.week, monday: range.monday, pages: [], caption: 'caption' }; }
-test('following calendar week and ISO year/week boundaries', () => {
+test('current week Monday–Saturday, following week Sunday, and ISO boundaries', () => {
   assert.equal(range.monday, '2026-09-21'); assert.equal(range.week, '2026-W39');
   assert.equal(range.dates.at(-1), '2026-09-27');
-  assert.equal(weeklyRange('2026-09-21').monday, '2026-09-28');
+  for (const date of ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26']) {
+    assert.equal(weeklyRange(date).monday, '2026-09-21');
+  }
+  assert.equal(weeklyRange('2026-09-27').monday, '2026-09-28');
+  assert.equal(weeklyRange('2026-09-28').monday, '2026-09-28');
+  assert.equal(weeklyRange('2026-12-31').week, '2026-W53');
   assert.equal(weeklyRange('2026-12-27').week, '2026-W53');
   assert.equal(weeklyRange('2027-01-03').week, '2027-W01');
   assert.equal(weeklyRange('2026-01-01', '2026-W01').monday, '2025-12-29');
