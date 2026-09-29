@@ -60,7 +60,7 @@ export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPag
   const tag = onlyCombinedPage === 'snack' ? '해양대학식'
     : onlyCombinedPage === 'teacher' ? '해양대교직원식당'
     : { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
-  return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n#해양대학교 #${tag}`;
+  return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n※ 이미지의 '메뉴 없음' 표시는 실제 메뉴가 없는 경우와 학교 홈페이지에 식단이 아직 등록되지 않은 경우를 구분할 수 없습니다. 이용 전 학교 홈페이지에서 최신 식단을 확인해 주세요.\n\n#해양대학교 #${tag}`;
 }
 export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, badaro: fetchBadaroMenu, coop: fetchCoopDailyMenu }) {
   const coop = new Map<string, ReturnType<typeof fetchCoopDailyMenu>>();

@@ -35,8 +35,9 @@ test('current week Monday–Saturday, following week Sunday, and ISO boundaries'
   assert.throws(() => weeklyRange('2026-02-30'));
 });
 test('captions use actual ranges, kind hashtags and year rollover', () => {
-  assert.equal(weeklyCaption('dormitory', range.dates), '2026년 9월 21일 ~ 9월 27일 기숙사 식단입니다.\n\n#해양대학교 #해양대기숙사');
-  assert.equal(weeklyCaption('combined', range.dates.slice(0, 5)), '2026년 9월 21일 ~ 9월 25일 학식 및 교직원 식당 식단입니다.\n\n#해양대학교 #해양대학식 #해양대교직원식당');
+  const notice = "※ 이미지의 '메뉴 없음' 표시는 실제 메뉴가 없는 경우와 학교 홈페이지에 식단이 아직 등록되지 않은 경우를 구분할 수 없습니다. 이용 전 학교 홈페이지에서 최신 식단을 확인해 주세요.";
+  assert.equal(weeklyCaption('dormitory', range.dates), `2026년 9월 21일 ~ 9월 27일 기숙사 식단입니다.\n\n${notice}\n\n#해양대학교 #해양대기숙사`);
+  assert.equal(weeklyCaption('combined', range.dates.slice(0, 5)), `2026년 9월 21일 ~ 9월 25일 학식 및 교직원 식당 식단입니다.\n\n${notice}\n\n#해양대학교 #해양대학식 #해양대교직원식당`);
   assert.match(weeklyCaption('badaro', range.dates), /#해양대승선생활관$/);
   assert.match(weeklyCaption('dormitory', weeklyRange('2026-12-27').dates), /2026년 12월 28일 ~ 2027년 1월 3일/);
 });
