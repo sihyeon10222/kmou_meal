@@ -35,7 +35,7 @@ test('current week Monday–Saturday, following week Sunday, and ISO boundaries'
   assert.throws(() => weeklyRange('2026-02-30'));
 });
 test('captions use actual ranges, kind hashtags and year rollover', () => {
-  const notice = "학교 측에서 식단이 아직 업데이트되지 않은 경우, 이미지에 '메뉴 없음'으로 표시될 수 있습니다.";
+  const notice = "학교 측의 식단 업데이트가 늦을 경우, 식단표에 '메뉴 없음'으로 표시될 수 있습니다.";
   assert.equal(weeklyCaption('dormitory', range.dates), `2026년 9월 21일 ~ 9월 27일 기숙사 식단입니다.\n\n${notice}\n\n#해양대학교 #해양대기숙사`);
   assert.equal(weeklyCaption('combined', range.dates.slice(0, 5)), `2026년 9월 21일 ~ 9월 25일 학식 및 교직원 식당 식단입니다.\n\n${notice}\n\n#해양대학교 #해양대학식 #해양대교직원식당`);
   assert.match(weeklyCaption('badaro', range.dates), /#해양대승선생활관$/);
