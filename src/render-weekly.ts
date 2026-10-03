@@ -19,7 +19,7 @@ export async function weeklyHtml(data: WeeklyPage, updatedOn?: string): Promise<
     loadFont(),
   ]);
   const panorama = data.kind === 'dormitory' || data.kind === 'badaro';
-  const title = { dormitory: '기숙사 식단', badaro: '승선생활관 식단', teacher: '교직원 식당 식단', snack: '학식 식단' }[data.kind];
+  const title = { dormitory: '기숙사', badaro: '승선생활관', teacher: '교직원식당', snack: '학식' }[data.kind];
   const days = data.days.map((day, index) => {
     const date = `${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))}`;
     const label = `${['월', '화', '수', '목', '금', '토', '일'][index]} ${date}`;
@@ -27,7 +27,7 @@ export async function weeklyHtml(data: WeeklyPage, updatedOn?: string): Promise<
       return `<section class="cell ${section.key}"><h2>${section.label}</h2><div class="menu">${itemsHtml(section.items)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span>${updatedOn ? `<span class="update-notice">${shortDate(updatedOn)}(${weekdayName(updatedOn)})에 식단표 변경됨</span>` : ''}</footer></main></body></html>`;
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="heading-row"><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span>${updatedOn ? `<span class="update-notice">${shortDate(updatedOn)}(${weekdayName(updatedOn)})에 식단표 변경됨</span>` : ''}</footer></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
   const images: string[] = [];

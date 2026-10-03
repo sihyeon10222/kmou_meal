@@ -59,16 +59,16 @@ for (const kind of ['combined', 'badaro', 'dormitory'] as const) {
               const text = document.createRange(); text.selectNodeContents(node);
               return [...text.getClientRects()].some(rect => rect.left < 1080 && rect.right > 1080);
             });
-            return { geometry, crossesCenter, titleBottom: title.bottom, titleLeft: title.left, rangeTop: range.top, rangeLeft: range.left, rangeRight: range.right, rangeAlign: getComputedStyle(document.querySelector('.range')!).textAlign, titleSize: getComputedStyle(document.querySelector('h1')!).fontSize };
+            return { geometry, crossesCenter, titleTop: title.top, titleRight: title.right, titleBottom: title.bottom, titleLeft: title.left, rangeTop: range.top, rangeLeft: range.left, rangeRight: range.right, rangeAlign: getComputedStyle(document.querySelector('.range')!).textAlign, titleSize: getComputedStyle(document.querySelector('h1')!).fontSize };
           });
           assert.equal(layout.geometry.length, 7);
           for (const day of layout.geometry) assert.deepEqual(day, layout.geometry[0]);
           assert.equal(layout.crossesCenter, true, 'Thursday menu must not avoid the center crop');
           assert.equal(layout.rangeAlign, 'right');
-          assert.equal(layout.titleSize, '60px');
+          assert.equal(layout.titleSize, '72px');
           assert.ok(layout.rangeRight <= 1080);
-          assert.ok(layout.rangeTop >= layout.titleBottom);
-          assert.ok(layout.rangeTop - layout.titleBottom < 20);
+          assert.ok(Math.abs(layout.rangeTop - layout.titleTop) <= 1);
+          assert.ok(layout.rangeLeft >= layout.titleRight + 23);
         } finally { await browser.close(); }
       }
     } finally { await rm(dir, { recursive: true, force: true }); }
