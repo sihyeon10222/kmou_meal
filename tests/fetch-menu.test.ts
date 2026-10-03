@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fetchDailyMenu, fetchBadaroMenu, seoulDate } from '../src/fetch-menu.js';
+import { fetchDailyMenu, fetchBadaroMenu, createResidenceMenuFetcher, seoulDate } from '../src/fetch-menu.js';
+import { fastMenuRetries } from './helpers/menu-retries.js';
 
 test('승선생활관은 badaro API와 sys_id로 세 끼를 조회한다', async t => {
   t.mock.method(globalThis, 'fetch', async (url: unknown, options: RequestInit) => {
@@ -58,6 +59,7 @@ test('잘못된 날짜, 응답 구조와 HTTP 실패는 정상 skip으로 숨기
 });
 
 test('일시적인 서버 오류는 재시도한다', async (t) => {
+  fastMenuRetries(t);
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async () => {
     calls++;
@@ -74,6 +76,7 @@ test('잘못된 JSON은 통신 오류로 재시도하지 않는다', async t => 
 });
 
 test('기숙사 응답 본문 수신 실패는 재시도 후 복구한다', async t => {
+  fastMenuRetries(t);
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async () => {
     calls++;
@@ -84,6 +87,51 @@ test('기숙사 응답 본문 수신 실패는 재시도 후 복구한다', asyn
   });
   assert.deepEqual(await fetchDailyMenu('2026-09-18'), { date: '2026/09/18', breakfast: [], lunch: ['밥'], dinner: [] });
   assert.equal(calls, 2);
+});
+
+test('한 응답의 여러 날짜와 끼니별 최신 행을 재사용하며 실행 간 캐시는 공유하지 않는다', async t => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => Response.json([
+    { dietSeq: 1, dietDate: '2026/09/30', dietAditCn1: '밥', dietAditCn2: '국', dietAditCn3: '기존 석식' },
+    { dietSeq: 2, dietDate: '2026/09/30', dietAditCn3: '수정 석식' },
+    { dietSeq: 3, dietDate: '2026/10/01', dietAditCn2: '다음 날 중식' },
+  ]));
+  const fetcher = createResidenceMenuFetcher('dorm');
+  assert.deepEqual(await fetcher('2026-09-30'), {
+    date: '2026/09/30', breakfast: ['밥'], lunch: ['국'], dinner: ['수정 석식'],
+  });
+  const next = await fetcher('2026-10-01');
+  assert.deepEqual(next?.lunch, ['다음 날 중식']);
+  next!.lunch.push('외부 수정');
+  assert.deepEqual((await fetcher('2026-10-01'))?.lunch, ['다음 날 중식']);
+  assert.equal(mock.mock.callCount(), 1);
+  await createResidenceMenuFetcher('dorm')('2026-10-01');
+  assert.equal(mock.mock.callCount(), 2);
+});
+
+test('응답에 없는 날짜는 별도 조회하고 실제로 빈 날짜만 캐시한다', async t => {
+  const dates: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const date = (init.body as URLSearchParams).get('sch_date')!;
+    dates.push(date);
+    return Response.json(date === '2026-10-02' ? [] : [
+      { dietSeq: 1, dietDate: date.replaceAll('-', '/'), dietAditCn2: date },
+    ]);
+  });
+  const fetcher = createResidenceMenuFetcher('badaro');
+  await fetcher('2026-09-30');
+  assert.deepEqual((await fetcher('2026-10-01'))?.lunch, ['2026-10-01']);
+  assert.equal(await fetcher('2026-10-02'), null);
+  assert.equal(await fetcher('2026-10-02'), null);
+  assert.deepEqual(dates, ['2026-09-30', '2026-10-01', '2026-10-02']);
+});
+
+test('조회 실패는 빈 식단으로 캐시하지 않고 식당과 날짜를 알린다', async t => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 403 }));
+  const fetcher = createResidenceMenuFetcher('badaro');
+  await assert.rejects(fetcher('2026-10-01'), /승선생활관.*badaro, 2026-10-01.*HTTP 403/);
+  mock.mock.mockImplementation(async () => Response.json([{ dietSeq: 1, dietDate: '2026/10/01', dietAditCn2: '복구 식단' }]));
+  assert.deepEqual((await fetcher('2026-10-01'))?.lunch, ['복구 식단']);
+  assert.equal(mock.mock.callCount(), 2);
 });
 
 test('조식 줄바꿈 정리와 잘못된 조식 응답 검증', async t => {

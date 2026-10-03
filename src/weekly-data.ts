@@ -1,5 +1,5 @@
 import { seoulDate, validateDate } from './dates.js';
-import { fetchDailyMenu, fetchBadaroMenu } from './fetch-menu.js';
+import { createResidenceMenuFetcher } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
 import type { MenuSection } from './story-data.js';
 
@@ -12,6 +12,7 @@ export interface WeeklyData {
   week: string;
   monday: string;
   caption: string;
+  updatedOn?: string;
   pages: WeeklyPage[];
 }
 export interface WeeklyPage {
@@ -48,7 +49,7 @@ export function weeklyRange(baseDate = seoulDate(), targetWeek?: string): Weekly
   }
   return { monday, week: isoWeek(monday), dates: Array.from({ length: 7 }, (_, index) => addDays(monday, index)) };
 }
-export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPage?: WeeklyPageKind): string {
+export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPage?: WeeklyPageKind, updatedOn?: string): string {
   const start = dates[0]!;
   const end = dates.at(-1)!;
   const [year, month, day] = start.split('-').map(Number);
@@ -60,9 +61,12 @@ export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPag
   const tag = onlyCombinedPage === 'snack' ? '해양대학식'
     : onlyCombinedPage === 'teacher' ? '해양대교직원식당'
     : { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
-  return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n학교 측의 식단 업데이트가 늦을 경우, 식단표에 '메뉴 없음'으로 표시될 수 있습니다.\n\n#해양대학교 #${tag}`;
+  const update = updatedOn ? `${shortDate(updatedOn)} ${weekdayName(updatedOn)}요일에 학교 측의 식단 업데이트로 인해 다시 올라온 게시물입니다.\n\n` : '';
+  return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n${update}학교 측의 식단 업데이트가 늦을 경우, 식단표에 '메뉴 없음'으로 표시될 수 있습니다.\n\n#해양대학교 #${tag}`;
 }
-export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, badaro: fetchBadaroMenu, coop: fetchCoopDailyMenu }) {
+export function createWeeklyFetcher(deps = {
+  dormitory: createResidenceMenuFetcher('dorm'), badaro: createResidenceMenuFetcher('badaro'), coop: fetchCoopDailyMenu,
+}) {
   const coop = new Map<string, ReturnType<typeof fetchCoopDailyMenu>>();
   return async (kind: WeeklyKind, range: WeeklyRange): Promise<WeeklyData> => {
     const dates = range.dates.slice(0, kind === 'combined' ? 5 : 7);
@@ -78,7 +82,10 @@ export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, badaro: 
         pages[0]!.days.push({ date, sections });
       } else {
         let pending = coop.get(date);
-        if (!pending) { pending = deps.coop(date); coop.set(date, pending); }
+        if (!pending) {
+          pending = deps.coop(date).catch(error => { coop.delete(date); throw error; });
+          coop.set(date, pending);
+        }
         const menu = await pending;
         pages[0]!.days.push({ date, sections: [
           { key: 'snack', label: '분식코너', items: menu.snackCorner.snack },
@@ -91,4 +98,12 @@ export function createWeeklyFetcher(deps = { dormitory: fetchDailyMenu, badaro: 
     }
     return { kind, week: range.week, monday: range.monday, pages, caption: weeklyCaption(kind, dates) };
   };
+}
+
+export function shortDate(date: string): string {
+  validateDate(date);
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`;
+}
+export function weekdayName(date: string): string {
+  return ['일', '월', '화', '수', '목', '금', '토'][new Date(`${validateDate(date)}T12:00:00Z`).getUTCDay()]!;
 }

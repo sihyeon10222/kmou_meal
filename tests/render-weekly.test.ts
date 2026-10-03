@@ -59,12 +59,14 @@ for (const kind of ['combined', 'badaro', 'dormitory'] as const) {
               const text = document.createRange(); text.selectNodeContents(node);
               return [...text.getClientRects()].some(rect => rect.left < 1080 && rect.right > 1080);
             });
-            return { geometry, crossesCenter, titleBottom: title.bottom, titleLeft: title.left, rangeTop: range.top, rangeLeft: range.left };
+            return { geometry, crossesCenter, titleBottom: title.bottom, titleLeft: title.left, rangeTop: range.top, rangeLeft: range.left, rangeRight: range.right, rangeAlign: getComputedStyle(document.querySelector('.range')!).textAlign, titleSize: getComputedStyle(document.querySelector('h1')!).fontSize };
           });
           assert.equal(layout.geometry.length, 7);
           for (const day of layout.geometry) assert.deepEqual(day, layout.geometry[0]);
           assert.equal(layout.crossesCenter, true, 'Thursday menu must not avoid the center crop');
-          assert.equal(layout.rangeLeft, layout.titleLeft);
+          assert.equal(layout.rangeAlign, 'right');
+          assert.equal(layout.titleSize, '60px');
+          assert.ok(layout.rangeRight <= 1080);
           assert.ok(layout.rangeTop >= layout.titleBottom);
           assert.ok(layout.rangeTop - layout.titleBottom < 20);
         } finally { await browser.close(); }
@@ -112,4 +114,30 @@ test('overflow fails before returning publishable images', async () => {
     data.pages[1]!.days[0]!.sections[1]!.items = Array.from({ length: 90 }, () => '메뉴');
     await assert.rejects(renderWeekly(data, dir), /초과/);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('compact ranges and update notices fit within the first panorama image', async () => {
+  const data = await fetcher('dormitory', range);
+  const html = await weeklyHtml(data.pages[0]!, '2026-09-23');
+  assert.match(html, /9\/21 ~ 9\/27/);
+  assert.match(html, /9\/23\(수\)에 식단표 변경됨/);
+  assert.doesNotMatch(await weeklyHtml(data.pages[0]!), /식단표 변경됨/);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 2160, height: 1440 } });
+    await page.setContent(html);
+    await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
+    await page.evaluate(() => document.fonts.ready);
+    const boxes = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const r = document.querySelector(selector)!.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      };
+      return { notice: rect('.update-notice'), calendar: rect('.calendar'), range: rect('.range'), title: rect('h1') };
+    });
+    assert.ok(boxes.notice.right < 1080 && boxes.notice.left >= 0);
+    assert.ok(boxes.notice.top > boxes.calendar.bottom);
+    assert.ok(boxes.range.bottom < boxes.calendar.top);
+    assert.ok(boxes.title.right < 1080);
+  } finally { await browser.close(); }
 });

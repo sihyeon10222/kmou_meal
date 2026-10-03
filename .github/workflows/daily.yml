@@ -68,5 +68,6 @@ jobs:
             output/*.jpg
             output/*.png
             output/*.json
+            output/*.failed.html
           if-no-files-found: ignore
           retention-days: 7

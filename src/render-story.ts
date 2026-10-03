@@ -154,10 +154,14 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
     const footer = document.querySelector('footer');
     if (!footer) throw new Error('Story 푸터가 없습니다. 템플릿을 확인하세요.');
     const footerTop = footer.getBoundingClientRect().top;
+    const safe = sectionsRoot.getBoundingClientRect();
     for (const section of document.querySelectorAll('.meal')) {
       const rect = section.getBoundingClientRect();
-      if (rect.bottom > footerTop || rect.left < 0 || rect.right > width) {
-        throw new Error('메뉴 레이아웃이 안전 영역을 초과합니다.');
+      if (rect.bottom > Math.min(safe.bottom, footerTop) + tolerance || rect.top < safe.top - tolerance
+        || rect.left < safe.left - tolerance || rect.right > Math.min(safe.right, width) + tolerance) {
+        throw new Error(`메뉴 레이아웃이 안전 영역을 초과합니다: ${section.className} ` +
+          `(좌 ${Math.round(rect.left)}, 우 ${Math.round(rect.right)}, 하 ${Math.round(rect.bottom)} / ` +
+          `안전 좌 ${Math.round(safe.left)}, 우 ${Math.round(safe.right)}, 하 ${Math.round(Math.min(safe.bottom, footerTop))})`);
       }
     }
   }, { width: STORY_SIZE.width, minFontSize: MIN_MENU_FONT_SIZE, maxFontSize: MAX_MENU_FONT_SIZE, tolerance: OVERFLOW_TOLERANCE });
@@ -181,6 +185,8 @@ export function createStoryRenderer(): StoryRenderer {
       const html = buildStoryHtml(data, common, restaurantCss);
       await mkdir(outputDir, { recursive: true });
       const stem = resolve(outputDir, `${data.request.targetDate}-${data.request.mode}`);
+      // Keep the exact input even when layout validation rejects the image.
+      await writeFile(`${stem}.menu.json`, JSON.stringify(data, null, 2));
 
       browser ??= chromium.launch({ headless: true }).catch(error => {
         browser = undefined;
@@ -193,6 +199,13 @@ export function createStoryRenderer(): StoryRenderer {
         await writeFile(`${stem}.html`, await page.content());
         await page.screenshot({ path: `${stem}.jpg`, type: 'jpeg', quality: JPEG_QUALITY });
         return `${stem}.jpg`;
+      } catch (error) {
+        // Diagnostic files are never returned as publishable images.
+        await Promise.allSettled([
+          page.content().then(content => writeFile(`${stem}.failed.html`, content)),
+          page.screenshot({ path: `${stem}.failed.png`, type: 'png' }),
+        ]);
+        throw error;
       } finally {
         await page.close();
       }

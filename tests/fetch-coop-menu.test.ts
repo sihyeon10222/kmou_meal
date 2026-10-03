@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fetchCoopDailyMenu, parseCoopMenu } from '../src/fetch-coop-menu.js';
 import { coopHtml, emptyCoopHtml } from './fixtures.js';
+import { fastMenuRetries } from './helpers/menu-retries.js';
 
 test('학식 POST 날짜/요청 본문과 7개 카테고리', async t => {
   t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
@@ -37,16 +38,18 @@ test('날짜만 있는 colspan 행은 빈 메뉴, 없는 표는 구조 오류', 
 });
 
 test('잘못된 날짜/HTTP 오류/timeout은 빈 메뉴로 숨기지 않는다', async t => {
+  fastMenuRetries(t);
   const mock = t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 503 }));
   await assert.rejects(fetchCoopDailyMenu('2026-02-30'), /존재하지 않는/);
   assert.equal(mock.mock.callCount(), 0);
   await assert.rejects(fetchCoopDailyMenu('2026-09-18'), /HTTP 503/);
   mock.mock.mockImplementation(async () => { throw new DOMException('Timeout', 'TimeoutError'); });
-  await assert.rejects(fetchCoopDailyMenu('2026-09-18'), /TimeoutError.*총 3회/);
-  assert.equal(mock.mock.callCount(), 6);
+  await assert.rejects(fetchCoopDailyMenu('2026-09-18'), /coop, 2026-09-18.*TimeoutError.*총 5회/);
+  assert.equal(mock.mock.callCount(), 10);
 });
 
 test('연결 오류와 본문 수신 실패 후 재조회로 복구한다', async t => {
+  fastMenuRetries(t);
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async () => {
     calls++;
@@ -59,6 +62,7 @@ test('연결 오류와 본문 수신 실패 후 재조회로 복구한다', asyn
 });
 
 test('일시 HTTP 오류는 복구하고 영구 HTTP/파싱 오류는 재시도하지 않는다', async t => {
+  fastMenuRetries(t);
   let calls = 0;
   const mock = t.mock.method(globalThis, 'fetch', async () => {
     calls++;

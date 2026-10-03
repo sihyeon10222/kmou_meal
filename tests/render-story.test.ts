@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { load } from 'cheerio';
+import { chromium } from 'playwright';
 import { createStoryRenderer, storyHtml } from '../src/render-story.js';
 import { coopStory, dormitoryStory } from '../src/story-data.js';
 import { STORY_MODES, resolveStoryRequest } from '../src/story-modes.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
+import type { CoopDailyMenu } from '../src/fetch-coop-menu.js';
 
 test('메뉴 HTML escape, 공통 헤더/푸터, 부분 empty 영역 유지', async () => {
   const data = dormitoryStory(resolveStoryRequest('today_dormitory_full', '2026-09-18'), {
@@ -63,6 +65,45 @@ test('스낵/교직원 전체 및 부분 누락은 영역을 유지한다', asyn
   }
 });
 
+test('10/2 학식의 긴 메뉴명이 두 열을 밀어내지 않고 모든 항목이 안전 영역에 남는다', async () => {
+  // School response fetched for 2026-10-02; the old 1fr grid reproduces the logged failure.
+  const menu: CoopDailyMenu = JSON.parse(await readFile(new URL('./fixtures/coop-2026-10-02.json', import.meta.url), 'utf8'));
+  const data = coopStory(resolveStoryRequest('today_snack', menu.date), menu);
+  const directory = await mkdtemp(join(tmpdir(), 'kmou-snack-regression-'));
+  const renderer = createStoryRenderer();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const file = await renderer.render(data, directory);
+    const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
+    await page.setContent(await readFile(file.replace('.jpg', '.html'), 'utf8'));
+    const measured = await page.evaluate(async () => {
+      await document.fonts.ready;
+      const safe = document.querySelector('.sections')!.getBoundingClientRect();
+      const sections = [...document.querySelectorAll('.meal')].map(section => {
+        const rect = section.getBoundingClientRect();
+        const menu = section.querySelector('.menu')!;
+        return { left: rect.left, right: rect.right, bottom: rect.bottom, width: rect.width,
+          fontSize: parseFloat(getComputedStyle(menu).fontSize),
+          text: [...menu.querySelectorAll('.dish')].map(item => item.textContent),
+          fits: menu.scrollWidth <= menu.clientWidth + 1 && menu.scrollHeight <= menu.clientHeight + 1 };
+      });
+      return { safe: { left: safe.left, right: safe.right, bottom: safe.bottom }, sections };
+    });
+    assert.equal(measured.sections.length, 4);
+    for (const [index, section] of measured.sections.entries()) {
+      assert.deepEqual(section.text, data.sections[index]!.items);
+      assert.ok(section.left >= measured.safe.left && section.right <= measured.safe.right);
+      assert.ok(section.bottom <= measured.safe.bottom + 1);
+      assert.equal(section.width, 449);
+      assert.ok(section.fits && section.fontSize >= 28);
+    }
+  } finally {
+    await browser.close();
+    await renderer.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'kmou-render-'));
   const renderer = createStoryRenderer();
@@ -105,7 +146,13 @@ test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패
     }
     const tooLong = coopStory(resolveStoryRequest('today_snack', '2026-09-18'), coopMenu);
     tooLong.sections[0]!.items = Array(70).fill('매우 긴 메뉴');
-    await assert.rejects(renderer.render(tooLong, directory), /메뉴가 이미지 영역을 초과/);
+    const overflowDir = join(directory, 'overflow');
+    await assert.rejects(renderer.render(tooLong, overflowDir), /메뉴가 이미지 영역을 초과/);
+    const stem = join(overflowDir, '2026-09-18-today_snack');
+    await assert.rejects(access(`${stem}.jpg`));
+    assert.deepEqual(JSON.parse(await readFile(`${stem}.menu.json`, 'utf8')), tooLong);
+    assert.ok((await readFile(`${stem}.failed.png`)).length > 0);
+    assert.equal(load(await readFile(`${stem}.failed.html`, 'utf8'))('.meal.western .dish').length, 70);
   } finally {
     await renderer.close();
     await rm(directory, { recursive: true, force: true });

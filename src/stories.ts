@@ -19,7 +19,6 @@ export async function executeStories({ mode, baseDate, preview }: StoryOptions) 
     fetchCoop: fetchCoopDailyMenu,
     render: async data => {
       const image = await renderer.render(data);
-      await writeFile(`output/${data.request.targetDate}-${data.request.mode}.menu.json`, JSON.stringify(data, null, 2));
       console.log(`Story 이미지: ${image}`);
       return image;
     },

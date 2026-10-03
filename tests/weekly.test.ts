@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { weeklyRange, weeklyCaption, createWeeklyFetcher, type WeeklyData, type WeeklyKind } from '../src/weekly-data.js';
 import { runWeekly, type WeeklyDependencies } from '../src/run-weekly.js';
-import { markWeeklySourceEmpty, postWeekly, publishedWeekly, type WeeklyRecord } from '../src/post-weekly.js';
+import { postWeekly as postWeeklyRaw, publishedWeekly, type WeeklyRecord } from '../src/post-weekly.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
-import { publishableWeekly, weeklyMenuHash } from '../src/weekly-snapshot.js';
+import { publishableWeekly, weeklyMenuHash, prepareWeekly, hasFutureAddition } from '../src/weekly-snapshot.js';
 import { notifyWeeklyReplacements } from '../src/weekly-notifications.js';
+import { fastMenuRetries } from './helpers/menu-retries.js';
 
+const today = '2026-09-20';
 const range = weeklyRange('2026-09-20');
 function data(kind: WeeklyKind = 'combined'): WeeklyData {
   const page = (pageKind: WeeklyData['pages'][number]['kind']) => ({ kind: pageKind, days: [
@@ -14,6 +16,17 @@ function data(kind: WeeklyKind = 'combined'): WeeklyData {
   ] });
   return { kind, week: range.week, monday: range.monday,
     pages: kind === 'combined' ? [page('snack'), page('teacher')] : [page(kind)], caption: 'caption' };
+}
+async function runWeeklyAt(...args: Parameters<typeof runWeekly>) {
+  const [targetRange, kind, preview, force, deps, date = today] = args;
+  return runWeekly(targetRange, kind, preview, force, deps, date);
+}
+async function postWeekly(...args: Parameters<typeof postWeeklyRaw>) {
+  const [input, images, force, storage, instagram, receipt] = args;
+  const date = args[6] ?? today;
+  const old = await publishedWeekly(storage, input.week, input.kind);
+  const prepared = prepareWeekly(input, old?.menuSnapshot, date, !!old)!;
+  return postWeeklyRaw(prepared, images, force, storage, instagram, receipt, date);
 }
 function oldRecord(kind: WeeklyKind, mediaId = 'old'): WeeklyRecord {
   return { week: range.week, kind, runId: 'legacy', status: 'published', startedAt: '2026-09-20T00:00:00Z',
@@ -68,6 +81,53 @@ test('API errors propagate instead of becoming empty menu data', async () => {
   await assert.rejects(fetcher('badaro', range), /badaro network/);
   await assert.rejects(fetcher('dormitory', range), /network/);
 });
+test('주간 기숙사와 승선생활관은 날짜별 메뉴를 보존하면서 각각 한 번만 조회한다', async t => {
+  const requested: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    const site = String(url).includes('/badaro/') ? 'badaro' : 'dorm';
+    requested.push(site);
+    return Response.json(range.dates.map((date, index) => ({
+      dietSeq: index, dietDate: date.replaceAll('-', '/'), dietAditCn1: `${site} ${date} 조식`,
+      dietAditCn2: `${site} ${date} 중식`, dietAditCn3: `${site} ${date} 석식`,
+    })));
+  });
+  const fetcher = createWeeklyFetcher();
+  for (const kind of ['badaro', 'dormitory'] as const) {
+    const result = await fetcher(kind, range);
+    assert.equal(result.pages[0]!.days.length, 7);
+    for (const day of result.pages[0]!.days) {
+      assert.equal(day.sections.length, 3);
+      assert.ok(day.sections.every(section => section.items[0]!.includes(day.date)));
+    }
+  }
+  assert.deepEqual(requested, ['badaro', 'dorm']);
+});
+
+test('학식 조회 실패 Promise는 캐시에 남지 않아 같은 실행에서도 재조회할 수 있다', async () => {
+  let calls = 0;
+  const fetcher = createWeeklyFetcher({
+    badaro: async () => null, dormitory: async () => null,
+    coop: async () => { if (++calls === 1) throw new Error('network'); return coopMenu; },
+  });
+  await assert.rejects(fetcher('combined', range), /network/);
+  assert.equal((await fetcher('combined', range)).pages[0]!.days.length, 5);
+  assert.equal(calls, 6);
+});
+
+test('학교 연결 장애가 지속되면 실패로 남기고 빈 메뉴나 이전 캐시로 게시하지 않는다', async t => {
+  fastMenuRetries(t);
+  const requests = t.mock.method(globalThis, 'fetch', async () => {
+    throw new TypeError('fetch failed', { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } });
+  });
+  const deps = runDeps([]);
+  deps.fetch = createWeeklyFetcher();
+  deps.render = async () => assert.fail('조회 실패 후 렌더 금지');
+  deps.post = async () => assert.fail('조회 실패 후 게시 금지');
+  const results = await runWeeklyAt(range, 'all', false, false, deps);
+  assert.deepEqual(results.map(result => result.status), ['failed', 'failed', 'failed']);
+  assert.ok(results.every(result => /2026-09-21.*UND_ERR_CONNECT_TIMEOUT.*총 5회/.test(result.error!)));
+  assert.equal(requests.mock.callCount(), 15);
+});
 function runDeps(events: string[]): WeeklyDependencies {
   return {
     fetch: async kind => { events.push(`fetch:${kind}`); return data(kind); },
@@ -79,17 +139,17 @@ function runDeps(events: string[]): WeeklyDependencies {
 test('sequential feed order, normal dedup and force override', async () => {
   const events: string[] = []; const deps = runDeps(events);
   deps.published = async (_, kind) => kind === 'combined' ? oldRecord(kind) : undefined;
-  const results = await runWeekly(range, 'all', false, false, deps);
+  const results = await runWeeklyAt(range, 'all', false, false, deps);
   assert.deepEqual(results.map(result => result.status), ['skipped', 'published', 'published']);
   assert.deepEqual(events.filter(value => value.startsWith('post:')), ['post:badaro', 'post:dormitory']);
   events.length = 0;
-  await runWeekly(range, 'combined', false, true, deps);
+  await runWeeklyAt(range, 'combined', false, true, deps);
   assert.deepEqual(events, ['fetch:combined', 'render:combined', 'post:combined']);
 });
 test('preview never initializes posting or dedup storage, even with force', async () => {
   const events: string[] = []; const deps = runDeps(events);
   deps.published = deps.post = async () => { throw new Error('must not call'); };
-  const results = await runWeekly(range, 'all', true, true, deps);
+  const results = await runWeeklyAt(range, 'all', true, true, deps);
   assert.equal(results.length, 3);
 });
 test('failed feed does not stop later feeds; rerun skips published kinds', async () => {
@@ -100,14 +160,14 @@ test('failed feed does not stop later feeds; rerun skips published kinds', async
   deps.post = async value => {
     events.push(`post:${value.kind}`);
     if (value.kind === 'badaro' && !badaroReady) throw new Error('failed');
-    published.set(value.kind, { ...oldRecord(value.kind, 'id'), menuHash: weeklyMenuHash(value) });
+    published.set(value.kind, { ...oldRecord(value.kind, 'id'), menuHash: weeklyMenuHash(value), menuSnapshot: structuredClone(value.pages) });
     return { mediaId: 'id', skipped: false };
   };
-  const first = await runWeekly(range, 'all', false, false, deps);
+  const first = await runWeeklyAt(range, 'all', false, false, deps);
   assert.deepEqual(first.map(result => result.status), ['published', 'failed', 'published']);
   events.length = 0;
   badaroReady = true;
-  const second = await runWeekly(range, 'all', false, false, deps);
+  const second = await runWeeklyAt(range, 'all', false, false, deps);
   assert.deepEqual(second.map(result => result.status), ['skipped', 'published', 'skipped']);
   assert.deepEqual(events, ['fetch:combined', 'fetch:badaro', 'render:badaro', 'post:badaro', 'fetch:dormitory']);
 });
@@ -118,7 +178,7 @@ test('메뉴가 전혀 없으면 해당 게시물만 대기한다', async () => 
     { date: range.monday, sections: [{ key: 'breakfast', label: 'Breakfast', items: [] }] },
   ] }] });
   deps.render = async () => assert.fail('빈 주간 식단 렌더 금지');
-  const result = await runWeekly(range, 'badaro', false, false, deps);
+  const result = await runWeeklyAt(range, 'badaro', false, false, deps);
   assert.equal(result[0]?.status, 'deferred');
 });
 test('통합 게시물은 메뉴 있는 식당 한 장만 올리고 다른 두 게시물도 처리한다', async () => {
@@ -128,7 +188,7 @@ test('통합 게시물은 메뉴 있는 식당 한 장만 올리고 다른 두 �
       { kind: 'snack', days: [{ date: '2026-10-02', sections: [{ key: 'snack', label: '분식코너', items: [] }] }] },
       { kind: 'teacher', days: [{ date: '2026-10-02', sections: [{ key: 'lunch', label: '중식', items: ['백반'] }] }] },
     ] } : data(kind);
-  const result = await runWeekly(range, 'all', false, false, deps);
+  const result = await runWeeklyAt(range, 'all', false, false, deps);
   assert.deepEqual(result.map(item => item.status), ['published', 'published', 'published']);
   assert.deepEqual(events.filter(event => event.startsWith('post:')), ['post:combined', 'post:badaro', 'post:dormitory']);
   const prepared = publishableWeekly(await deps.fetch('combined', range));
@@ -203,32 +263,16 @@ test('corrupted success records fail closed', async () => {
   await assert.rejects(publishedWeekly(s.storage, range.week, 'combined'), /올바르지/);
 });
 
-test('normalized menu changes trigger replacement but whitespace does not', async () => {
-  const s = services(); let next = 0;
-  s.instagram.publishFeed = async (_urls, _caption, onContainer, beforePublish) => {
-    await onContainer('container'); await beforePublish(); return `media-${++next}`;
-  };
-  const first = data('combined');
-  const firstResult = await postWeekly(first, ['a', 'b'], false, s.storage, s.instagram, async () => {});
-  assert.equal(firstResult.mediaId, 'media-1');
-  const whitespace = structuredClone(first);
-  whitespace.pages[0]!.days[0]!.sections[0]!.items[0] = ' 비빔밥  ';
-  assert.equal(weeklyMenuHash(first), weeklyMenuHash(whitespace));
-  assert.equal((await postWeekly(whitespace, ['a', 'b'], false, s.storage, s.instagram, async () => {})).skipped, true);
-  const added = structuredClone(first);
-  added.pages[0]!.days[0]!.sections[0]!.items.push('국');
-  const second = await postWeekly(added, ['a', 'b'], false, s.storage, s.instagram, async () => {});
-  assert.equal(second.replacedMediaId, 'media-1');
-  const edited = structuredClone(added);
-  edited.pages[0]!.days[0]!.sections[0]!.items[0] = '볶음밥';
-  await postWeekly(edited, ['a', 'b'], false, s.storage, s.instagram, async () => {});
-  const removed = structuredClone(edited);
-  removed.pages[0]!.days[0]!.sections[0]!.items.pop();
-  await postWeekly(removed, ['a', 'b'], false, s.storage, s.instagram, async () => {});
-  const saved = await publishedWeekly(s.storage, range.week, 'combined');
-  assert.equal(saved?.mediaId, 'media-4');
-  assert.deepEqual(saved?.supersededMediaIds, ['media-1', 'media-2', 'media-3']);
-  assert.equal(saved?.pendingNotifications?.length, 3);
+test('existing meal edits, additions within a meal and removals never replace', async () => {
+  const s = services();
+  const first = data();
+  await postWeekly(first, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  for (const items of [[' 비빔밥  '], ['비빔밥', '국'], ['볶음밥'], []]) {
+    const edited = structuredClone(first);
+    edited.pages[0]!.days[0]!.sections[0]!.items = items;
+    assert.equal((await postWeekly(edited, ['a', 'b'], false, s.storage, s.instagram, async () => {})).skipped, true);
+  }
+  assert.equal(s.events.filter(event => event === 'publish').length, 1);
 });
 
 test('single restaurant feed is replaced by two-page carousel when other restaurant appears', async () => {
@@ -278,13 +322,103 @@ test('replacement notification retries without reposting or duplicating issue co
   } finally { globalThis.fetch = original; }
 });
 
-test('all menus removed after publication queues one manual removal notice', async () => {
+test('all menus removed do not post or queue deletion notices', async () => {
   const s = services();
-  await postWeekly(data('badaro'), ['a', 'b'], false, s.storage, s.instagram, async () => {});
-  await markWeeklySourceEmpty(s.storage, range.week, 'badaro');
-  await markWeeklySourceEmpty(s.storage, range.week, 'badaro');
-  const saved = await publishedWeekly(s.storage, range.week, 'badaro');
-  assert.equal(saved?.sourceEmptyNotified, true);
-  assert.equal(saved?.pendingNotifications?.length, 1);
-  assert.equal(saved?.pendingNotifications?.[0]?.newMediaId, undefined);
+  const original = data('badaro');
+  await postWeekly(original, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  const deps = runDeps([]);
+  deps.published = async () => publishedWeekly(s.storage, range.week, 'badaro');
+  deps.fetch = async () => ({ ...original, pages: original.pages.map(page => ({ ...page, days: page.days.map(day => ({ ...day, sections: day.sections.map(section => ({ ...section, items: [] })) })) })) });
+  deps.render = async () => assert.fail('must not render');
+  assert.equal((await runWeeklyAt(range, 'badaro', false, false, deps))[0]!.status, 'skipped');
+  assert.deepEqual((await publishedWeekly(s.storage, range.week, 'badaro'))?.pendingNotifications, []);
+});
+
+function fullWeek(): WeeklyData {
+  return { ...data('dormitory'), pages: [{ kind: 'dormitory', days: range.dates.map((date, i) => ({ date,
+    sections: ['breakfast', 'lunch', 'dinner'].map(key => ({ key, label: key, items: i < 5 ? ['기존 메뉴'] : [] })) })) }] };
+}
+test('Wednesday weekend addition replaces, freezes elapsed days and refreshes future menus', async () => {
+  const old = fullWeek();
+  const next = structuredClone(old);
+  next.pages[0]!.days.forEach(day => day.sections.forEach(section => { section.items = ['새 메뉴']; }));
+  assert.equal(hasFutureAddition(next, old.pages, '2026-09-23'), true);
+  const prepared = prepareWeekly(next, old.pages, '2026-09-23', true)!;
+  assert.equal(prepared.updatedOn, '2026-09-23');
+  assert.ok(prepared.pages[0]!.days.slice(0, 3).every(day => day.sections[0]!.items[0] === '기존 메뉴'));
+  assert.ok(prepared.pages[0]!.days.slice(3).every(day => day.sections[0]!.items[0] === '새 메뉴'));
+  assert.match(prepared.caption, /9\/23 수요일에 학교 측의 식단 업데이트로 인해 다시 올라온 게시물입니다\.\n\n학교 측/);
+  assert.equal(hasFutureAddition(next, prepared.pages, '2026-09-23'), false);
+});
+test('Friday additions through Friday are ignored, but through Sunday warrant a post', () => {
+  const old = fullWeek();
+  old.pages[0]!.days.slice(3).forEach(day => day.sections.forEach(section => { section.items = []; }));
+  const next = fullWeek();
+  assert.equal(hasFutureAddition(next, old.pages, '2026-09-25'), false);
+  next.pages[0]!.days[6]!.sections[2]!.items = ['석식'];
+  assert.equal(hasFutureAddition(next, old.pages, '2026-09-25'), true);
+  assert.equal(hasFutureAddition(next, old.pages, '2026-09-27'), false);
+});
+test('individual future meal and corner additions qualify even when the date already has menus', () => {
+  const old = fullWeek(); old.pages[0]!.days[4]!.sections[1]!.items = [];
+  assert.equal(hasFutureAddition(fullWeek(), old.pages, '2026-09-23'), true);
+  const previous = data(); previous.pages[0]!.days[0]!.sections = [
+    { key: 'snack', label: '분식', items: ['메뉴'] }, { key: 'set-meal', label: '정식', items: [] }];
+  const next = structuredClone(previous); next.pages[0]!.days[0]!.sections[1]!.items = ['정식'];
+  assert.equal(hasFutureAddition(next, previous.pages, today), true);
+});
+test('initial publication with only elapsed menus is deferred', async () => {
+  const deps = runDeps([]); deps.render = async () => assert.fail('must not render');
+  assert.equal((await runWeeklyAt(range, 'combined', false, false, deps, range.monday))[0]!.status, 'deferred');
+});
+test('lock recheck skips a future addition that another execution already published', async () => {
+  const s = services(); const next = fullWeek(); next.pages[0]!.days[6]!.sections[0]!.items = ['신규'];
+  const prepared = prepareWeekly(next, fullWeek().pages, today, true)!;
+  s.records.set(`${range.week}/dormitory/success.json`, { ...oldRecord('dormitory'), menuSnapshot: prepared.pages });
+  const result = await postWeeklyRaw(prepared, ['a', 'b'], false, s.storage, s.instagram, async () => {}, today);
+  assert.equal(result.skipped, true); assert.ok(!s.events.includes('publish'));
+});
+
+test('automatic replacement saves exactly the frozen rendered snapshot, then skips next run', async () => {
+  const s = services(); const old = fullWeek();
+  await postWeekly(old, ['a', 'b'], false, s.storage, s.instagram, async () => {});
+  const latest = structuredClone(old);
+  latest.pages[0]!.days.forEach(day => day.sections.forEach(section => { section.items = ['최신 식단']; }));
+  let rendered: WeeklyData | undefined;
+  const deps: WeeklyDependencies = {
+    published: async (week, kind) => publishedWeekly(s.storage, week, kind),
+    fetch: async () => latest,
+    render: async value => { rendered = structuredClone(value); return { images: ['a', 'b'] }; },
+    post: async (value, images, force) => postWeeklyRaw(value, images, force, s.storage, s.instagram, async () => {}, '2026-09-23'),
+  };
+  assert.equal((await runWeeklyAt(range, 'dormitory', false, false, deps, '2026-09-23'))[0]!.status, 'replaced');
+  const saved = (await publishedWeekly(s.storage, range.week, 'dormitory'))!;
+  assert.deepEqual(saved.menuSnapshot, rendered!.pages);
+  assert.equal(saved.caption, rendered!.caption);
+  assert.equal(saved.menuSnapshot![0]!.days[0]!.sections[0]!.items[0], '기존 메뉴');
+  assert.equal(saved.pendingNotifications!.length, 1);
+  assert.equal((await runWeeklyAt(range, 'dormitory', false, false, deps, '2026-09-24'))[0]!.status, 'skipped');
+});
+test('force replacement renders the update notice even for a legacy record', async () => {
+  const deps = runDeps([]);
+  deps.published = async () => oldRecord('combined');
+  deps.render = async value => {
+    assert.equal(value.updatedOn, today);
+    assert.match(value.caption, /다시 올라온 게시물/);
+    return { images: ['a', 'b'] };
+  };
+  assert.equal((await runWeeklyAt(range, 'combined', false, true, deps))[0]!.status, 'published');
+});
+test('omitted restaurant keeps past cells empty while adding future menus', () => {
+  const next = data();
+  next.pages[1]!.days.push({ date: '2026-09-25', sections: [{ key: 'lunch', label: 'Lunch', items: ['새 식단'] }] });
+  const old = [next.pages[0]!];
+  const prepared = prepareWeekly(next, old, '2026-09-23', true)!;
+  assert.deepEqual(prepared.pages[1]!.days[0]!.sections[0]!.items, []);
+  assert.deepEqual(prepared.pages[1]!.days[1]!.sections[0]!.items, ['새 식단']);
+});
+test('malformed stored snapshots fail before any automatic publication', async () => {
+  const s = services();
+  s.records.set(`${range.week}/combined/success.json`, { ...oldRecord('combined'), menuSnapshot: [{ kind: 'snack', days: 'bad' }] });
+  await assert.rejects(publishedWeekly(s.storage, range.week, 'combined'), /올바르지/);
 });

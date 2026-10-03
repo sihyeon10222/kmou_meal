@@ -43,7 +43,30 @@ export async function fetchBadaroMenu(date: Date | string = new Date()): Promise
 
 async function fetchResidenceMenu(site: 'dorm' | 'badaro', date: Date | string): Promise<DailyMenu | null> {
   const requestDate = typeof date === 'string' ? validateDate(date) : seoulDate(date);
-  const targetDate = requestDate.replaceAll('-', '/');
+  return menuForDate(await fetchResidenceRows(site, requestDate), requestDate);
+}
+
+/** Reuse only dates explicitly present in a response, within this one execution. */
+export function createResidenceMenuFetcher(site: 'dorm' | 'badaro') {
+  const menus = new Map<string, DailyMenu | null>();
+  return async (date: Date | string): Promise<DailyMenu | null> => {
+    const requestDate = typeof date === 'string' ? validateDate(date) : seoulDate(date);
+    if (!menus.has(requestDate)) {
+      const rows = await fetchResidenceRows(site, requestDate);
+      // A response may span weeks or months. Absent dates still get their own request;
+      // absence from another date's response must not be treated as an empty menu.
+      for (const returnedDate of new Set(rows.map(row => row.dietDate))) {
+        const key = returnedDate.replaceAll('/', '-');
+        menus.set(key, menuForDate(rows, key));
+      }
+      menus.set(requestDate, menuForDate(rows, requestDate));
+    }
+    return structuredClone(menus.get(requestDate)!);
+  };
+}
+
+async function fetchResidenceRows(site: 'dorm' | 'badaro', requestDate: string): Promise<RawDiet[]> {
+  const source = `KMOU ${site === 'dorm' ? '기숙사' : '승선생활관'} 식단 조회 (${site}, ${requestDate})`;
   const body = await fetchMenuText(`https://www.kmou.ac.kr/${site}/di/diet/selectDietList.do`, {
     method: 'POST',
     headers: {
@@ -51,17 +74,22 @@ async function fetchResidenceMenu(site: 'dorm' | 'badaro', date: Date | string):
       Referer: `https://www.kmou.ac.kr/${site}/dv/dietView/`,
     },
     body: new URLSearchParams({ diet_ty: '주간식단표', sys_id: site, sch_date: requestDate }),
-  }, 'KMOU 식단 요청');
+  }, source);
 
   let data: unknown;
   try {
     data = JSON.parse(body);
   } catch (cause) {
-    throw new Error('KMOU 식단 응답 JSON을 해석할 수 없습니다.', { cause });
+    throw new Error(`${source}: 응답 JSON을 해석할 수 없습니다.`, { cause });
   }
   if (!Array.isArray(data) || !data.every(isRawDiet)) {
-    throw new Error('KMOU 식단 응답 구조가 예상과 다릅니다.');
+    throw new Error(`${source}: 응답 구조가 예상과 다릅니다.`);
   }
+  return data;
+}
+
+function menuForDate(data: RawDiet[], requestDate: string): DailyMenu | null {
+  const targetDate = requestDate.replaceAll('-', '/');
   const candidates = data.filter((item) => item.dietDate === targetDate);
   if (candidates.length === 0) return null;
   // A newer row may update only one meal. Keep the latest populated value for each meal.

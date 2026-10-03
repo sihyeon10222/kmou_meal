@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { escapeHtml, readTemplate, loadFont } from './render-assets.js';
-import type { WeeklyData, WeeklyPage } from './weekly-data.js';
+import { shortDate, weekdayName, type WeeklyData, type WeeklyPage } from './weekly-data.js';
 import type { WeeklyImages } from './run-weekly.js';
 
 const dish = (text: string) => text.split(/(\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})/u).map(part => {
@@ -13,7 +13,7 @@ const dish = (text: string) => text.split(/(\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})/
   return Array.from(part, char => `${/[\p{P}\p{S}]/u.test(char) && !/[)\]}]/u.test(char) ? '<wbr>' : ''}${escapeHtml(char)}`).join('');
 }).join('');
 const itemsHtml = (items: string[]) => items.length ? items.map(item => `<p>${dish(item)}</p>`).join('') : '<p class="empty">메뉴 없음</p>';
-export async function weeklyHtml(data: WeeklyPage): Promise<string> {
+export async function weeklyHtml(data: WeeklyPage, updatedOn?: string): Promise<string> {
   const [css, font] = await Promise.all([
     readTemplate('weekly.css'),
     loadFont(),
@@ -27,27 +27,27 @@ export async function weeklyHtml(data: WeeklyPage): Promise<string> {
       return `<section class="cell ${section.key}"><h2>${section.label}</h2><div class="menu">${itemsHtml(section.items)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${escapeHtml(data.days[0]!.date)} — ${escapeHtml(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span></footer></main></body></html>`;
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="eyebrow">KMOU WEEKLY MENU</div><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span>${updatedOn ? `<span class="update-notice">${shortDate(updatedOn)}(${weekdayName(updatedOn)})에 식단표 변경됨</span>` : ''}</footer></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
   const images: string[] = [];
   let master: string | undefined;
   for (const page of data.pages) {
-    const rendered = await renderWeeklyPage(page, data.week, outputDir);
+    const rendered = await renderWeeklyPage(page, data.week, outputDir, data.updatedOn);
     images.push(...rendered.images);
     master = rendered.master ?? master;
   }
   return { images, ...(master ? { master } : {}) };
 }
 
-async function renderWeeklyPage(data: WeeklyPage, week: string, outputDir: string): Promise<WeeklyImages> {
+async function renderWeeklyPage(data: WeeklyPage, week: string, outputDir: string, updatedOn?: string): Promise<WeeklyImages> {
   await mkdir(outputDir, { recursive: true });
   const stem = resolve(outputDir, `${week}-${data.kind}-weekly`);
   const panorama = data.kind === 'dormitory' || data.kind === 'badaro';
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: panorama ? 2160 : 1080, height: 1440 }, deviceScaleFactor: 1 });
-    await page.setContent(await weeklyHtml(data), { waitUntil: 'load' });
+    await page.setContent(await weeklyHtml(data, updatedOn), { waitUntil: 'load' });
     await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
     await page.evaluate(async () => {
       await document.fonts.ready;

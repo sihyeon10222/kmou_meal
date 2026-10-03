@@ -44,7 +44,7 @@ export async function fetchCoopDailyMenu(date = seoulDate()): Promise<CoopDailyM
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Referer: COOP_URL, Accept: 'text/html' },
     body: new URLSearchParams({ sys_id: 'coop', sch_date: date.replaceAll('-', '/'), gbn: '', streFileNm: '' }),
-  }, '학식 조회');
+  }, `학식·교직원 조회 (coop, ${date})`);
   // 정상 응답의 구조 오류는 통신 재시도 대상이 아닙니다.
   return parseCoopMenu(html, date);
 }
