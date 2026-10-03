@@ -27,7 +27,7 @@ export async function weeklyHtml(data: WeeklyPage, updatedOn?: string): Promise<
       return `<section class="cell ${section.key}"><h2>${section.label}</h2><div class="menu">${itemsHtml(section.items)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="heading-row"><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div></header><div class="calendar">${days}</div><footer><span>@kmou_meal</span>${updatedOn ? `<span class="update-notice">${shortDate(updatedOn)}(${weekdayName(updatedOn)})에 식단표 변경됨</span>` : ''}</footer></main></body></html>`;
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${data.kind} ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="heading-row"><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div>${updatedOn ? `<div class="update-notice">${shortDate(updatedOn)}(${weekdayName(updatedOn)})에 식단표 변경됨</div>` : ''}</header><div class="calendar">${days}</div></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
   const images: string[] = [];
@@ -90,10 +90,10 @@ async function renderWeeklyPage(data: WeeklyPage, week: string, outputDir: strin
         }
         if (!fits()) throw new Error('주간 메뉴가 최소 글자 크기에서도 영역을 초과합니다.');
         const box = cell.getBoundingClientRect();
-        const footer = document.querySelector('footer')!.getBoundingClientRect();
+        const calendarBox = calendar.getBoundingClientRect();
         const day = cell.closest('.day')!.getBoundingClientRect();
-        if (box.bottom > footer.top || box.left < day.left || box.right > day.right + 1) {
-          throw new Error('주간 메뉴 영역이 날짜 칸 또는 푸터를 침범합니다.');
+        if (box.bottom > calendarBox.bottom + 1 || box.left < day.left || box.right > day.right + 1) {
+          throw new Error('주간 메뉴 영역이 날짜 칸 또는 식단표를 침범합니다.');
         }
       }
     });

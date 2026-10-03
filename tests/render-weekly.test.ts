@@ -62,7 +62,11 @@ for (const kind of ['combined', 'badaro', 'dormitory'] as const) {
             return { geometry, crossesCenter, titleTop: title.top, titleRight: title.right, titleBottom: title.bottom, titleLeft: title.left, rangeTop: range.top, rangeLeft: range.left, rangeRight: range.right, rangeAlign: getComputedStyle(document.querySelector('.range')!).textAlign, titleSize: getComputedStyle(document.querySelector('h1')!).fontSize };
           });
           assert.equal(layout.geometry.length, 7);
-          for (const day of layout.geometry) assert.deepEqual(day, layout.geometry[0]);
+          for (const day of layout.geometry) {
+            const first = layout.geometry[0]!;
+            assert.ok(Math.abs(day.width - first.width) < 1, 'columns differ only by subpixel rounding');
+            assert.deepEqual({ ...day, width: first.width }, first);
+          }
           assert.equal(layout.crossesCenter, true, 'Thursday menu must not avoid the center crop');
           assert.equal(layout.rangeAlign, 'right');
           assert.equal(layout.titleSize, '72px');
@@ -136,7 +140,13 @@ test('compact ranges and update notices fit within the first panorama image', as
       return { notice: rect('.update-notice'), calendar: rect('.calendar'), range: rect('.range'), title: rect('h1') };
     });
     assert.ok(boxes.notice.right < 1080 && boxes.notice.left >= 0);
-    assert.ok(boxes.notice.top > boxes.calendar.bottom);
+    assert.ok(boxes.notice.top >= boxes.title.bottom);
+    assert.equal(boxes.notice.left, boxes.title.left);
+    assert.ok(boxes.notice.bottom < boxes.calendar.top);
+    assert.doesNotMatch(html, /@kmou_meal|<footer/);
+    assert.equal(boxes.calendar.left, 24);
+    assert.equal(2160 - boxes.calendar.right, 24);
+    assert.equal(1440 - boxes.calendar.bottom, 24);
     assert.ok(boxes.range.bottom < boxes.calendar.top);
     assert.ok(boxes.title.right < 1080);
   } finally { await browser.close(); }

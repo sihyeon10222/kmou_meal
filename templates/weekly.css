@@ -1,12 +1,12 @@
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Meal, sans-serif; color: #183d44; background: #f5f1e7; }
-.sheet { height: 1440px; position: relative; overflow: hidden; }
-header { position: absolute; top: 58px; left: 48px; right: 48px; }
+.sheet { --page-margin: 24px; --header-margin: 58px; height: 1440px; position: relative; overflow: hidden; }
+header { position: absolute; top: var(--header-margin); left: var(--header-margin); right: var(--header-margin); }
 h1 { font-size: 72px; letter-spacing: -2px; margin: 0; font-weight: 760; }
 .heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin: 0; }
 .heading-row h1 { flex-shrink: 0; white-space: nowrap; }
 .range { font-size: 72px; text-align: right; white-space: nowrap; }
-.calendar { position: absolute; top: 240px; bottom: 106px; left: 48px; right: 48px; display: grid; grid-template-columns: repeat(var(--days), minmax(0,1fr)); }
+.calendar { position: absolute; top: 240px; bottom: var(--page-margin); left: var(--page-margin); right: var(--page-margin); display: grid; grid-template-columns: repeat(var(--days), minmax(0,1fr)); }
 .day { display: grid; grid-template-rows: 70px repeat(var(--rows), minmax(0, 1fr)); min-width: 0; min-height: 0; height: 100%; border-right: 1px solid #183d4426; }
 .day:first-child { border-left: 1px solid #183d4426; }
 .day-title { display:flex; align-items:center; justify-content:center; gap: 8px; font-size: 25px; font-weight: 700; border-bottom: 2px solid #183d4440; }
@@ -18,10 +18,7 @@ h2 { font-size: 20px; font-weight: 760; margin: 0 0 17px; white-space: nowrap; t
 p { margin: 0 0 .3em; word-break: keep-all; overflow-wrap: normal; }
 .no-break { white-space: nowrap; }
 .empty { opacity: .65; }
-footer { position: absolute; left: 48px; right: 48px; bottom: 0; height: 85px; display:flex; align-items:center; justify-content:space-between; font-size: 19px; }
-.panorama .calendar { left: 72px; right: 72px; }
 .panorama .cell { padding: 18px; }
 
-.panorama header { right: auto; width: 984px; }
-.panorama footer { right: auto; width: 984px; }
-.update-notice { font-size: 24px; font-weight: 650; white-space: nowrap; }
+.panorama header { right: auto; width: calc(1080px - 2 * var(--header-margin)); }
+.update-notice { margin-top: 8px; font-size: 24px; font-weight: 650; white-space: nowrap; }
