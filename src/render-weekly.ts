@@ -12,7 +12,7 @@ const dish = (text: string) => text.split(/(\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})/
   }
   return Array.from(part, char => `${/[\p{P}\p{S}]/u.test(char) && !/[)\]}]/u.test(char) ? '<wbr>' : ''}${escapeHtml(char)}`).join('');
 }).join('');
-const itemsHtml = (items: string[]) => items.length ? items.map(item => `<p>${dish(item)}</p>`).join('') : '<p class="empty">메뉴 없음</p>';
+const itemsHtml = (items: string[]) => items.length ? items.map(item => `<p>${dish(item)}</p>`).join('') : '<p class="empty">등록된 식단 없음</p>';
 export async function weeklyHtml(data: WeeklyPage, updatedOn?: string): Promise<string> {
   const [css, font] = await Promise.all([
     readTemplate('weekly.css'),

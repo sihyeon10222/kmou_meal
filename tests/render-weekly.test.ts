@@ -84,7 +84,7 @@ test('empty weekday/holiday areas and HTML escaping survive rendering', async ()
     const data = await fetcher('combined', range);
     const page = data.pages[1]!;
     page.days.forEach(day => day.sections.forEach(section => { section.items = []; }));
-    assert.equal(((await weeklyHtml(page)).match(/메뉴 없음/g) ?? []).length, 15);
+    assert.equal(((await weeklyHtml(page)).match(/등록된 식단 없음/g) ?? []).length, 15);
     await renderWeekly(data, dir);
     page.days[0]!.sections[0]!.items = ['<script>alert("test")</script>'];
     assert.ok(!(await weeklyHtml(page)).includes('<script>'));

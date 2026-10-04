@@ -19,7 +19,7 @@ test('메뉴 HTML escape, 공통 헤더, 부분 empty 영역 유지', async () =
   const $ = load(html);
   assert.equal($('script').length, 0);
   assert.ok(html.includes('&lt;script&gt;'));
-  assert.equal($('.dinner .menu').text(), '메뉴 없음');
+  assert.equal($('.dinner .menu').text(), '등록된 식단 없음');
   assert.equal($('h1').text(), '기숙사');
   assert.equal($('.date').text(), '9/18(금)');
   assert.equal($('footer').length, 0);
@@ -63,7 +63,7 @@ test('스낵/교직원 전체 및 부분 누락은 영역을 유지한다', asyn
     partial.staffRestaurant.breakfast = [];
     const p = load(await storyHtml(coopStory(request, partial)));
     assert.equal(p('.empty').length, 1);
-    assert.equal(p(mode === 'today_snack' ? '.meal.snack .menu' : '.breakfast .menu').text(), '메뉴 없음');
+    assert.equal(p(mode === 'today_snack' ? '.meal.snack .menu' : '.breakfast .menu').text(), '등록된 식단 없음');
   }
 });
 
@@ -119,7 +119,7 @@ test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패
       assert.deepEqual([...(await readFile(file)).subarray(0, 2)], [0xff, 0xd8]);
       const html = load(await readFile(file.replace('.jpg', '.html'), 'utf8'));
       assert.equal(html('.dish').length, data.sections.reduce((sum, s) => sum + Math.max(s.items.length, 1), 0));
-      assert.ok(html('.dish').toArray().every((node, index) => html(node).text() === data.sections.flatMap(s => s.items.length ? s.items : ['메뉴 없음'])[index]));
+      assert.ok(html('.dish').toArray().every((node, index) => html(node).text() === data.sections.flatMap(s => s.items.length ? s.items : ['등록된 식단 없음'])[index]));
       const numberFromStyle = (selector: string, property: string) => {
         const match = html(selector).attr('style')?.match(new RegExp(`${property}:\\s*([\\d.]+)px`));
         assert.ok(match, `${selector}의 ${property} 동적 스타일이 필요합니다.`);

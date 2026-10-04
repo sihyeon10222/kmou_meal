@@ -41,7 +41,7 @@ function sectionHtml(section: MenuSection): string {
   }).join('');
   const items = section.items.length
     ? section.items.map(item => `<p class="dish">${dishHtml(item)}</p>`).join('')
-    : '<p class="dish empty">메뉴 없음</p>';
+    : '<p class="dish empty">등록된 식단 없음</p>';
   return `<section class="meal ${escapeHtml(section.key)}" aria-label="${escapeHtml(section.label)}"><div class="meal-heading"><span class="symbol ${symbol}"></span><h2>${escapeHtml(section.label)}</h2></div><div class="menu">${items}</div></section>`;
 }
 

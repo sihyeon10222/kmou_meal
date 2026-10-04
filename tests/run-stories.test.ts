@@ -67,7 +67,7 @@ test('주말 학식은 개별/배치 모두 조회·렌더·게시 전 skip', as
   assert.deepEqual(batch.map(r => r.status), ['preview', 'preview', 'skipped', 'skipped']);
 });
 
-test('학식 조회 실패는 메뉴 없음 Story로 게시하지 않는다', async () => {
+test('학식 조회 실패는 등록된 식단 없음 Story로 게시하지 않는다', async () => {
   const results = await runStories('today_full_batch', '2026-09-18', true, {
     fetchBadaro: async () => null, fetchDormitory: async () => null, fetchCoop: async () => { throw new Error('HTTP 500'); },
     render: async data => { assert.ok(['dormitory', 'badaro'].includes(data.request.restaurant)); return 'image.jpg'; },
