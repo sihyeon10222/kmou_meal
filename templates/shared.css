@@ -3,10 +3,9 @@
 html, body { width: 1080px; height: 1920px; margin: 0; }
 body { font-family: Meal, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
 .story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
-header { position: absolute; left: 69px; right: 69px; top: 164px; }
-.eyebrow { height: 32px; font-size: 27px; font-weight: 650; letter-spacing: 4px; display: flex; align-items: center; gap: 21px; }
-.eyebrow::before { content: ''; width: 44px; height: 7px; background: var(--orange); }
-h1 { font-size: 70px; font-weight: 770; letter-spacing: -4px; line-height: 1.2; margin: 30px 0 0; white-space: nowrap; }
+header { position: absolute; left: 58px; right: 58px; top: 164px; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
+h1 { font-size: 72px; font-weight: 760; letter-spacing: -2px; margin: 0; white-space: nowrap; }
+.date { font-size: 72px; font-weight: 400; text-align: right; white-space: nowrap; }
 .meal { display: flex; flex-direction: column; min-height: 0; }
 .sections { position: absolute; left: 69px; right: 69px; top: 450px; bottom: 191px; min-height: 0; }
 .meal-heading { flex: 0 0 78px; display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #183d4426; padding-bottom: 25px; }
@@ -22,8 +21,6 @@ h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px;
 .story.dinner { background: var(--blue); color: var(--paper); }
 .story.dinner .night, .story.lunch .night, .story.breakfast .night { display: none; }
 .story.breakfast { background: #fff; }
-footer { position: absolute; left: 69px; right: 69px; bottom: 0; color: var(--paper); border-top: 1px solid #f5f1e780; padding: 50px 0; display: flex; justify-content: space-between; font-size: 29px; line-height: 40px; font-weight: 450; letter-spacing: -.5px; }
-.story.lunch footer, .story.breakfast footer { color: var(--ink); border-color: #183d4440; }
 .story.full:not(.snack) { background: linear-gradient(to bottom, #fff 0 var(--morning-end, 40%), var(--paper) var(--morning-end, 40%) 100%); }
 .story.full:not(.snack) .sections { display: flex; flex-direction: column; gap: 30px; }
 .story.full:not(.snack) .meal { flex: none; }

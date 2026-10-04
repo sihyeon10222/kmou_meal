@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { escapeHtml, readTemplate, loadFont } from './render-assets.js';
 export { escapeHtml } from './render-assets.js';
 import { resolve } from 'node:path';
+import { shortDate, weekdayName } from './weekly-data.js';
 import { chromium, type Browser, type Page } from 'playwright';
 import type { MenuSection, StoryRenderData } from './story-data.js';
 import type { Restaurant } from './story-modes.js';
@@ -50,8 +51,8 @@ function buildStoryHtml(data: StoryRenderData, assets: TemplateAssets, layout: s
     FONT: assets.font,
     CSS: `${assets.css}\n${layout}`,
     CLASSES: `${request.restaurant === 'badaro' ? 'badaro dormitory' : request.restaurant} ${request.scope}`,
-    DATE: escapeHtml(request.dateLabel),
-    TITLE: escapeHtml(request.title),
+    DATE: escapeHtml(`${shortDate(request.targetDate)}(${weekdayName(request.targetDate)})`),
+    TITLE: { dormitory: '기숙사', badaro: '승선생활관', snack: '학식', teacher: '교직원식당' }[request.restaurant],
     SECTIONS: sections.map(sectionHtml).join(''),
   };
   return assets.template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => replacements[key] ?? '');
@@ -151,17 +152,20 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
       if (breakfast) story.style.setProperty('--morning-end', `${Math.round(breakfast.getBoundingClientRect().bottom + 15)}px`);
       if (dinner) story.style.setProperty('--night-start', `${Math.round(dinner.getBoundingClientRect().top - 15)}px`);
     }
-    const footer = document.querySelector('footer');
-    if (!footer) throw new Error('Story 푸터가 없습니다. 템플릿을 확인하세요.');
-    const footerTop = footer.getBoundingClientRect().top;
     const safe = sectionsRoot.getBoundingClientRect();
+    const header = story.querySelector('header')!.getBoundingClientRect();
+    const title = story.querySelector('h1')!.getBoundingClientRect();
+    const date = story.querySelector('.date')!.getBoundingClientRect();
+    if (header.bottom > safe.top || title.right + 24 > date.left + tolerance || date.right > width - 58 + tolerance) {
+      throw new Error('Story 제목과 날짜가 겹치거나 안전 영역을 초과합니다.');
+    }
     for (const section of document.querySelectorAll('.meal')) {
       const rect = section.getBoundingClientRect();
-      if (rect.bottom > Math.min(safe.bottom, footerTop) + tolerance || rect.top < safe.top - tolerance
+      if (rect.bottom > safe.bottom + tolerance || rect.top < safe.top - tolerance
         || rect.left < safe.left - tolerance || rect.right > Math.min(safe.right, width) + tolerance) {
         throw new Error(`메뉴 레이아웃이 안전 영역을 초과합니다: ${section.className} ` +
           `(좌 ${Math.round(rect.left)}, 우 ${Math.round(rect.right)}, 하 ${Math.round(rect.bottom)} / ` +
-          `안전 좌 ${Math.round(safe.left)}, 우 ${Math.round(safe.right)}, 하 ${Math.round(Math.min(safe.bottom, footerTop))})`);
+          `안전 좌 ${Math.round(safe.left)}, 우 ${Math.round(safe.right)}, 하 ${Math.round(safe.bottom)})`);
       }
     }
   }, { width: STORY_SIZE.width, minFontSize: MIN_MENU_FONT_SIZE, maxFontSize: MAX_MENU_FONT_SIZE, tolerance: OVERFLOW_TOLERANCE });

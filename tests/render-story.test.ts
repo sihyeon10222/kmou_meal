@@ -11,7 +11,7 @@ import { STORY_MODES, resolveStoryRequest } from '../src/story-modes.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
 import type { CoopDailyMenu } from '../src/fetch-coop-menu.js';
 
-test('메뉴 HTML escape, 공통 헤더/푸터, 부분 empty 영역 유지', async () => {
+test('메뉴 HTML escape, 공통 헤더, 부분 empty 영역 유지', async () => {
   const data = dormitoryStory(resolveStoryRequest('today_dormitory_full', '2026-09-18'), {
     date: '2026/09/18', breakfast: [], lunch: ['<script>alert(1)</script>', '밥&김치'], dinner: [],
   });
@@ -20,8 +20,10 @@ test('메뉴 HTML escape, 공통 헤더/푸터, 부분 empty 영역 유지', asy
   assert.equal($('script').length, 0);
   assert.ok(html.includes('&lt;script&gt;'));
   assert.equal($('.dinner .menu').text(), '메뉴 없음');
-  assert.equal($('h1').text(), '9/18 금요일기숙사 식단');
-  assert.equal($('footer').text(), '@kmou_meal');
+  assert.equal($('h1').text(), '기숙사');
+  assert.equal($('.date').text(), '9/18(금)');
+  assert.equal($('footer').length, 0);
+  assert.equal($('.eyebrow').length, 0);
 });
 
 test('메뉴 항목은 제목처럼 임의로 굵어지지 않고 조합 기호 앞에서 줄바꿈할 수 있다', async () => {
@@ -47,7 +49,7 @@ test('26개 모드의 실제 DOM은 요청한 영역만 포함하고 영어 끼�
       const labels = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', full: 'Breakfast|Lunch|Dinner' };
       assert.equal($('h2').map((_, el) => $(el).text()).get().join('|'), labels[request.scope]);
     }
-    assert.ok($('h1').text().includes(request.title));
+    assert.equal($('h1').text(), { dormitory: '기숙사', badaro: '승선생활관', snack: '학식', teacher: '교직원식당' }[request.restaurant]);
   }
 });
 
@@ -157,4 +159,35 @@ test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패
     await renderer.close();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('모든 스토리 모드에서 제목과 날짜는 같은 줄의 안전 영역에 배치된다', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
+    for (const mode of STORY_MODES) {
+      const request = resolveStoryRequest(mode, '2026-12-30');
+      const data = ['dormitory', 'badaro'].includes(request.restaurant) ? dormitoryStory(request, null) : coopStory(request, emptyCoop);
+      await page.setContent(await storyHtml(data));
+      await page.evaluate(() => document.fonts.ready);
+      const layout = await page.evaluate(() => {
+        const header = document.querySelector('header')!.getBoundingClientRect();
+        const title = document.querySelector('h1')!.getBoundingClientRect();
+        const date = document.querySelector('.date')!.getBoundingClientRect();
+        return { left: header.left, right: header.right, top: header.top, bottom: header.bottom,
+          titleTop: title.top, dateTop: date.top, titleRight: title.right, dateLeft: date.left,
+          titleSize: getComputedStyle(document.querySelector('h1')!).fontSize,
+          dateSize: getComputedStyle(document.querySelector('.date')!).fontSize,
+          menuTop: document.querySelector('.sections')!.getBoundingClientRect().top };
+      });
+      assert.equal(layout.left, 58);
+      assert.equal(layout.right, 1022);
+      assert.equal(layout.top, 164);
+      assert.equal(layout.titleSize, '72px');
+      assert.equal(layout.dateSize, '72px');
+      assert.ok(Math.abs(layout.titleTop - layout.dateTop) < 1);
+      assert.ok(layout.titleRight + 24 <= layout.dateLeft + 1);
+      assert.ok(layout.bottom < layout.menuTop);
+    }
+  } finally { await browser.close(); }
 });

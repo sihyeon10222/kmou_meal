@@ -2,7 +2,6 @@
 /* Long unbroken menu names must shrink inside their column, not widen the grid. */
 .snack .meal, .snack .menu { min-width: 0; }
 .story.snack .night { display: none; }
-.story.snack footer { color: var(--ink); border-color: #183d4440; }
 .snack h2 { font-size: 44px; letter-spacing: -2px; }
 .snack .meal-heading { gap: 18px; }
 .snack .menu { letter-spacing: -1.5px; }
