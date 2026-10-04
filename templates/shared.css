@@ -3,9 +3,9 @@
 html, body { width: 1080px; height: 1920px; margin: 0; }
 body { font-family: Meal, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
 .story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
-header { position: absolute; left: 58px; right: 58px; top: 164px; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
+header { position: absolute; left: 58px; right: 58px; top: 164px; display: flex; align-items: baseline; justify-content: flex-start; gap: 24px; }
 h1 { font-size: 72px; font-weight: 760; letter-spacing: -2px; margin: 0; white-space: nowrap; }
-.date { font-size: 72px; font-weight: 400; text-align: right; white-space: nowrap; }
+.date { font-size: 72px; font-weight: 400; text-align: left; white-space: nowrap; }
 .meal { display: flex; flex-direction: column; min-height: 0; }
 .sections { position: absolute; left: 69px; right: 69px; top: 450px; bottom: 191px; min-height: 0; }
 .meal-heading { flex: 0 0 78px; display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #183d4426; padding-bottom: 25px; }

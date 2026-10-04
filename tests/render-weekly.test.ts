@@ -68,11 +68,11 @@ for (const kind of ['combined', 'badaro', 'dormitory'] as const) {
             assert.deepEqual({ ...day, width: first.width }, first);
           }
           assert.equal(layout.crossesCenter, true, 'Thursday menu must not avoid the center crop');
-          assert.equal(layout.rangeAlign, 'right');
+          assert.equal(layout.rangeAlign, 'left');
           assert.equal(layout.titleSize, '72px');
           assert.ok(layout.rangeRight <= 1080);
           assert.ok(Math.abs(layout.rangeTop - layout.titleTop) <= 1);
-          assert.ok(layout.rangeLeft >= layout.titleRight + 23);
+          assert.ok(Math.abs(layout.rangeLeft - layout.titleRight - 24) <= 1);
         } finally { await browser.close(); }
       }
     } finally { await rm(dir, { recursive: true, force: true }); }

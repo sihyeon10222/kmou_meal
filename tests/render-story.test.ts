@@ -186,7 +186,7 @@ test('모든 스토리 모드에서 제목과 날짜는 같은 줄의 안전 영
       assert.equal(layout.titleSize, '72px');
       assert.equal(layout.dateSize, '72px');
       assert.ok(Math.abs(layout.titleTop - layout.dateTop) < 1);
-      assert.ok(layout.titleRight + 24 <= layout.dateLeft + 1);
+      assert.ok(Math.abs(layout.dateLeft - layout.titleRight - 24) <= 1);
       assert.ok(layout.bottom < layout.menuTop);
     }
   } finally { await browser.close(); }

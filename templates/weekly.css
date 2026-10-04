@@ -3,9 +3,9 @@ body { margin: 0; font-family: Meal, sans-serif; color: #183d44; background: #f5
 .sheet { --page-margin: 24px; --header-margin: 58px; height: 1440px; position: relative; overflow: hidden; }
 header { position: absolute; top: var(--header-margin); left: var(--header-margin); right: var(--header-margin); }
 h1 { font-size: 72px; letter-spacing: -2px; margin: 0; font-weight: 760; }
-.heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin: 0; }
+.heading-row { display: flex; align-items: baseline; justify-content: flex-start; gap: 24px; margin: 0; }
 .heading-row h1 { flex-shrink: 0; white-space: nowrap; }
-.range { font-size: 72px; text-align: right; white-space: nowrap; }
+.range { font-size: 72px; text-align: left; white-space: nowrap; }
 .calendar { position: absolute; top: 240px; bottom: var(--page-margin); left: var(--page-margin); right: var(--page-margin); display: grid; grid-template-columns: repeat(var(--days), minmax(0,1fr)); }
 .day { display: grid; grid-template-rows: 70px repeat(var(--rows), minmax(0, 1fr)); min-width: 0; min-height: 0; height: 100%; border-right: 1px solid #183d4426; }
 .day:first-child { border-left: 1px solid #183d4426; }
