@@ -96,7 +96,7 @@ test('10/2 학식의 긴 메뉴명이 두 열을 밀어내지 않고 모든 항�
       assert.deepEqual(section.text, data.sections[index]!.items);
       assert.ok(section.left >= measured.safe.left && section.right <= measured.safe.right);
       assert.ok(section.bottom <= measured.safe.bottom + 1);
-      assert.equal(section.width, 449);
+      assert.equal(section.width, 458);
       assert.ok(section.fits && section.fontSize >= 28);
     }
   } finally {
@@ -127,17 +127,17 @@ test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패
       };
       if (mode === 'today_snack') {
         assert.equal(html('.meal').length, 4);
-        assert.notEqual(numberFromStyle('.menu:first', 'font-size'), numberFromStyle('.menu:last', 'font-size'));
+        assert.equal(numberFromStyle('.menu:first', 'font-size'), numberFromStyle('.menu:last', 'font-size'));
         assert.notEqual(numberFromStyle('.sections', '--snack-row-1'), numberFromStyle('.sections', '--snack-row-2'));
       }
       if (mode === 'today_teacher_full') {
         assert.equal(html('.meal').length, 3);
         assert.ok(numberFromStyle('.breakfast', 'height') < numberFromStyle('.lunch', 'height'));
-        assert.ok(numberFromStyle('.breakfast .menu', 'font-size') > numberFromStyle('.lunch .menu', 'font-size'));
+        assert.equal(numberFromStyle('.breakfast .menu', 'font-size'), numberFromStyle('.lunch .menu', 'font-size'));
       }
       if (mode === 'today_dormitory_full') {
         assert.ok(numberFromStyle('.breakfast', 'height') < numberFromStyle('.lunch', 'height'));
-        assert.ok(numberFromStyle('.breakfast .menu', 'font-size') > numberFromStyle('.lunch .menu', 'font-size'));
+        assert.equal(numberFromStyle('.breakfast .menu', 'font-size'), numberFromStyle('.lunch .menu', 'font-size'));
       }
     }
     for (const mode of ['today_snack', 'today_teacher_full'] as const) {
@@ -190,4 +190,77 @@ test('모든 스토리 모드에서 제목과 날짜는 같은 줄의 안전 영
       assert.ok(layout.bottom < layout.menuTop);
     }
   } finally { await browser.close(); }
+});
+
+test('하루 세 끼 각 다섯 항목은 넓어진 영역에서 큰 글자와 항목 간격을 사용한다', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kmou-story-spacing-'));
+  const renderer = createStoryRenderer();
+  try {
+    const data = dormitoryStory(resolveStoryRequest('today_dormitory_full', '2026-10-05'), {
+      date: '2026/10/05',
+      breakfast: ['우유or두유/시리얼', '셀프토스트&버터/딸기잼', '계란후라이', '맛살샐러드', '사과'],
+      lunch: ['짜장밥', '대파계란국', '칠리탕수육', '양배추샐러드&케요네즈', '밥/김치'],
+      dinner: ['시락국', '닭갈비', '감자채햄볶음', '청경채생채', '밥/김치'],
+    });
+    const file = await renderer.render(data, directory);
+    const html = load(await readFile(file.replace('.jpg', '.html'), 'utf8'));
+    for (const menu of html('.menu').toArray()) {
+      const style = html(menu).attr('style')!;
+      assert.ok(Number(/font-size:\s*(\d+)px/.exec(style)![1]) >= 44);
+      assert.equal(Number(/gap:\s*(\d+)px/.exec(style)![1]), Math.max(10, Math.round(Number(/font-size:\s*(\d+)px/.exec(style)![1]) * .35)));
+    }
+    assert.equal(html('.dish').length, 15);
+  } finally {
+    await renderer.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 중앙 경계', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kmou-uniform-spacing-'));
+  const renderer = createStoryRenderer();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
+    await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
+    for (const mode of ['today_dormitory_full', 'today_badaro_full', 'today_teacher_full', 'today_snack', 'today_teacher_lunch'] as const) {
+      const request = resolveStoryRequest(mode, '2026-10-05');
+      const data = ['dormitory', 'badaro'].includes(request.restaurant)
+        ? dormitoryStory(request, { date: '2026/10/05', breakfast: ['우유', '빵'], lunch: Array(7).fill('점심 메뉴'), dinner: Array(4).fill('저녁 메뉴') })
+        : coopStory(request, mode === 'today_teacher_lunch' ? emptyCoop : coopMenu);
+      const file = await renderer.render(data, directory);
+      await page.setContent(await readFile(file.replace('.jpg', '.html'), 'utf8'));
+      await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
+      const layout = await page.evaluate(async () => {
+        await document.fonts.ready;
+        const header = document.querySelector('header')!.getBoundingClientRect();
+        const root = document.querySelector('.sections')!.getBoundingClientRect();
+        const meals = [...document.querySelectorAll('.meal')];
+        const boxes = meals.map(meal => meal.getBoundingClientRect());
+        const snack = document.querySelector('.story')!.classList.contains('snack');
+        const rows = snack ? [boxes.slice(0, 2), boxes.slice(2)] : boxes.map(box => [box]);
+        const gaps = [Math.min(...rows[0]!.map(box => box.top)) - header.bottom];
+        for (let index = 1; index < rows.length; index++) gaps.push(Math.min(...rows[index]!.map(box => box.top)) - Math.max(...rows[index - 1]!.map(box => box.bottom)));
+        gaps.push(1820 - Math.max(...rows.at(-1)!.map(box => box.bottom)));
+        const typography = meals.map(meal => {
+          const menu = meal.querySelector('.menu')!;
+          const heading = meal.querySelector('.meal-heading')!;
+          const style = getComputedStyle(menu);
+          return { font: style.fontSize, gap: style.gap, line: style.lineHeight, padding: style.paddingTop,
+            headingGap: getComputedStyle(heading).gap, fits: menu.scrollWidth <= menu.clientWidth + 1 && menu.scrollHeight <= menu.clientHeight + 1 };
+        });
+        const story = document.querySelector<HTMLElement>('.story')!;
+        const morning = parseFloat(story.style.getPropertyValue('--morning-end'));
+        const night = parseFloat(story.style.getPropertyValue('--night-start'));
+        return { left: root.left, right: root.right, gaps, typography,
+          firstRowAligned: !snack || Math.abs(boxes[0]!.top - boxes[1]!.top) < 1,
+          morningError: rows.length === 3 ? Math.abs(morning - (boxes[0]!.bottom + boxes[1]!.top) / 2) : 0,
+          nightError: rows.length === 3 ? Math.abs(night - (boxes[1]!.bottom + boxes[2]!.top) / 2) : 0 };
+      });
+      assert.equal(layout.left, 58); assert.equal(layout.right, 1022);
+      for (const gap of layout.gaps) { assert.ok(gap >= 47); assert.ok(Math.abs(gap - layout.gaps[0]!) <= 1); }
+      for (const typography of layout.typography) { assert.deepEqual(typography, layout.typography[0]); assert.equal(typography.padding, '24px'); assert.equal(typography.headingGap, '24px'); assert.ok(typography.fits); }
+      assert.ok(layout.firstRowAligned && layout.morningError <= 1 && layout.nightError <= 1);
+    }
+  } finally { await renderer.close(); await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });

@@ -8,7 +8,7 @@ try {
   const results = options.command === 'story'
     ? await executeStories(options)
     : await executeWeekly(options.range, options.restaurant, options.preview, options.force);
-  if (results.some(result => result.status === 'failed')) process.exitCode = 1;
+  if (results.some(result => result.status === 'failed' || ('warning' in result && result.warning))) process.exitCode = 1;
 } catch (error) {
   console.error(safeError(error));
   process.exitCode = 1;

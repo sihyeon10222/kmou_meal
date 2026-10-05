@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { fetchCoopDailyMenu, parseCoopMenu } from '../src/fetch-coop-menu.js';
 import { coopHtml, emptyCoopHtml } from './fixtures.js';
 import { fastMenuRetries } from './helpers/menu-retries.js';
+import { readFile } from 'node:fs/promises';
 
 test('학식 POST 날짜/요청 본문과 7개 카테고리', async t => {
   t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
@@ -35,6 +36,24 @@ test('날짜만 있는 colspan 행은 빈 메뉴, 없는 표는 구조 오류', 
   assert.ok([...Object.values(menu.snackCorner), ...Object.values(menu.staffRestaurant)].every(x => x.length === 0));
   assert.throws(() => parseCoopMenu('<html>장애 페이지</html>', '2026-09-18'), /구조 오류/);
   assert.throws(() => parseCoopMenu(coopHtml.replace('양식코너', '변경됨'), '2026-09-18'), /구조 오류/);
+});
+
+test('10/5 실제 응답: 대체공휴일 학식 안내와 교직원의 빈 tbody를 구분한다', async () => {
+  const html = await readFile(new URL('./fixtures/coop-2026-10-05.html', import.meta.url), 'utf8');
+  const menu = parseCoopMenu(html, '2026-10-05');
+  assert.deepEqual(menu.snackCorner.western, ['*대체공휴일 미운영']);
+  assert.deepEqual(menu.staffRestaurant, { breakfast: [], lunch: [], dinner: [] });
+  assert.throws(() => parseCoopMenu(html, '2026-10-06'), /응답 날짜 오류/);
+});
+
+test('메뉴 열/본문이 손상되면 정상적인 빈 식단으로 숨기지 않는다', () => {
+  for (const html of [
+    coopHtml.replace('<td>명란두부찌개</td>', ''),
+    coopHtml.replace('<td>명란두부찌개</td>', '<td colspan="3">명란두부찌개</td>'),
+    coopHtml.replace('<td>명란두부찌개</td>', '<td rowspan="2">명란두부찌개</td>'),
+    coopHtml.replace(/<tbody>[\s\S]*?<\/tbody>/g, ''),
+    emptyCoopHtml.replace('2026년 09월 19일', '서버 점검중'),
+  ]) assert.throws(() => parseCoopMenu(html, '2026-09-18'), /구조 오류/);
 });
 
 test('잘못된 날짜/HTTP 오류/timeout은 빈 메뉴로 숨기지 않는다', async t => {

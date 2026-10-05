@@ -10,7 +10,7 @@ import type { Restaurant } from './story-modes.js';
 const STORY_SIZE = { width: 1080, height: 1920 };
 const JPEG_QUALITY = 94;
 const MIN_MENU_FONT_SIZE = 28;
-const MAX_MENU_FONT_SIZE = 60;
+const MAX_MENU_FONT_SIZE = 72;
 const OVERFLOW_TOLERANCE = 1;
 
 interface TemplateAssets {
@@ -83,8 +83,8 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
 
     const setMenuTypography = (menu: HTMLElement, size: number) => {
       menu.style.fontSize = `${size}px`;
-      menu.style.gap = `${Math.max(5, Math.round(size * .25))}px`;
-      menu.style.lineHeight = size <= 36 ? '1.2' : '1.3';
+      menu.style.gap = `${Math.max(10, Math.round(size * .35))}px`;
+      menu.style.lineHeight = size <= 36 ? '1.25' : '1.35';
     };
     const measureSection = (section: HTMLElement, size: number) => {
       const clone = section.cloneNode(true) as HTMLElement;
@@ -95,62 +95,60 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
       menu.style.height = 'auto';
       setMenuTypography(menu, size);
       story.append(clone);
-      const height = Math.ceil(clone.scrollHeight);
+      const height = Math.ceil(clone.getBoundingClientRect().height);
       clone.remove();
       return height;
     };
-    const allocate = (minimums: number[], maximums: number[], available: number) => {
-      const minTotal = minimums.reduce((sum, value) => sum + value, 0);
-      if (minTotal > available + tolerance) {
-        throw new Error(`메뉴가 이미지 영역을 초과합니다. 최소 필요 높이 ${Math.ceil(minTotal)}px / 사용 가능 높이 ${Math.floor(available)}px`);
+    const headerBox = story.querySelector('header')!.getBoundingClientRect();
+    const available = 1920 - 100 - headerBox.bottom;
+    const snack = story.classList.contains('snack');
+    const rowCount = snack ? 2 : sections.length;
+    const rowHeights = (heights: number[]) => snack
+      ? [Math.max(heights[0]!, heights[1]!), Math.max(heights[2]!, heights[3]!)]
+      : heights;
+    let best = 0;
+    let heights: number[] = [];
+    for (let size = maxFontSize; size >= minFontSize; size--) {
+      const measured = sections.map(section => measureSection(section, size));
+      const rows = rowHeights(measured);
+      const fitsWidth = sections.every(section => {
+        const menu = section.querySelector<HTMLElement>('.menu')!;
+        setMenuTypography(menu, size);
+        return menu.scrollWidth <= menu.clientWidth + tolerance;
+      });
+      if (fitsWidth && rows.reduce((sum, height) => sum + height, 0) + 48 * (rowCount + 1) <= available + tolerance) {
+        best = size;
+        heights = measured;
+        break;
       }
-      // Square-root weighting still grants denser sections more room, while
-      // reserving enough space for sparse sections to use visibly larger type.
-      const growth = maximums.map((value, index) => Math.sqrt(Math.max(0, value - minimums[index]!)));
-      const growthTotal = growth.reduce((sum, value) => sum + value, 0);
-      const remaining = available - minTotal;
-      const allocations = minimums.map((value, index) => value + (growthTotal ? remaining * growth[index]! / growthTotal : remaining / minimums.length));
-      return allocations;
-    };
-
-    const sectionMinimums = sections.map(section => measureSection(section, minFontSize));
-    const sectionMaximums = sections.map(section => measureSection(section, maxFontSize));
-    if (story.classList.contains('snack')) {
-      const gap = parseFloat(getComputedStyle(sectionsRoot).rowGap) || 0;
-      const minimums = [Math.max(sectionMinimums[0]!, sectionMinimums[1]!), Math.max(sectionMinimums[2]!, sectionMinimums[3]!)];
-      const maximums = [Math.max(sectionMaximums[0]!, sectionMaximums[1]!), Math.max(sectionMaximums[2]!, sectionMaximums[3]!)];
-      const rows = allocate(minimums, maximums, sectionsRoot.clientHeight - gap);
+    }
+    if (!best) throw new Error('메뉴가 이미지 영역을 초과합니다. 최소 글자 크기와 여백에서도 들어가지 않습니다.');
+    const rows = rowHeights(heights);
+    const gap = (available - rows.reduce((sum, height) => sum + height, 0)) / (rowCount + 1);
+    sectionsRoot.style.top = `${headerBox.bottom + gap}px`;
+    sectionsRoot.style.bottom = `${100 + gap}px`;
+    sectionsRoot.style.rowGap = `${gap}px`;
+    if (snack) {
       sectionsRoot.style.setProperty('--snack-row-1', `${rows[0]}px`);
       sectionsRoot.style.setProperty('--snack-row-2', `${rows[1]}px`);
-    } else if (story.classList.contains('full')) {
-      const gap = parseFloat(getComputedStyle(sectionsRoot).rowGap) || 0;
-      const heights = allocate(sectionMinimums, sectionMaximums, sectionsRoot.clientHeight - gap * (sections.length - 1));
-      sections.forEach((section, index) => { section.style.height = `${heights[index]}px`; });
+    } else {
+      sectionsRoot.style.display = 'flex';
+      sectionsRoot.style.flexDirection = 'column';
     }
-
-    for (const section of sections) {
-      const menu = section.querySelector<HTMLElement>('.menu');
-      if (!menu) throw new Error('메뉴 요소가 없습니다.');
-      let low = minFontSize;
-      let high = maxFontSize;
-      let best = minFontSize;
-      while (low <= high) {
-        const size = Math.floor((low + high) / 2);
-        setMenuTypography(menu, size);
-        const fits = menu.scrollHeight <= menu.clientHeight + tolerance && menu.scrollWidth <= menu.clientWidth + tolerance;
-        if (fits) { best = size; low = size + 1; } else { high = size - 1; }
-      }
+    sections.forEach((section, index) => {
+      section.style.flex = 'none';
+      section.style.height = `${heights[index]}px`;
+      const menu = section.querySelector<HTMLElement>('.menu')!;
       setMenuTypography(menu, best);
       if (menu.scrollHeight > menu.clientHeight + tolerance || menu.scrollWidth > menu.clientWidth + tolerance) {
-        throw new Error(`메뉴가 이미지 영역을 초과합니다: ${section.className} (${menu.scrollHeight}×${menu.scrollWidth} / ${menu.clientHeight}×${menu.clientWidth})`);
+        throw new Error(`메뉴가 이미지 영역을 초과합니다: ${section.className} (${menu.scrollHeight}/${menu.clientHeight}, ${menu.scrollWidth}/${menu.clientWidth}, ${heights[index]})`);
       }
-    }
-
-    if (story.classList.contains('full')) {
+    });
+    if (story.classList.contains('full') && !snack) {
       const breakfast = story.querySelector<HTMLElement>('.meal.breakfast');
       const dinner = story.querySelector<HTMLElement>('.meal.dinner');
-      if (breakfast) story.style.setProperty('--morning-end', `${Math.round(breakfast.getBoundingClientRect().bottom + 15)}px`);
-      if (dinner) story.style.setProperty('--night-start', `${Math.round(dinner.getBoundingClientRect().top - 15)}px`);
+      if (breakfast) story.style.setProperty('--morning-end', `${breakfast.getBoundingClientRect().bottom + gap / 2}px`);
+      if (dinner) story.style.setProperty('--night-start', `${dinner.getBoundingClientRect().top - gap / 2}px`);
     }
     const safe = sectionsRoot.getBoundingClientRect();
     const header = story.querySelector('header')!.getBoundingClientRect();

@@ -81,6 +81,51 @@ test('게시 POST 응답 유실 시 자동 재전송하지 않는다', async (t)
   assert.equal(fetchMock.mock.callCount(), 1);
 });
 
+for (const failure of ['network', 'timeout', '503', '429', 'auth', 'invalid', 'exhaust'] as const) {
+  test(`Instagram GET 재시도 범위: ${failure}`, async t => {
+    let calls = 0;
+    const waits: number[] = [];
+    t.mock.method(globalThis, 'fetch', async () => {
+      calls++;
+      if (calls > 1 && failure !== 'exhaust') return Response.json({ status_code: 'FINISHED' });
+      if (failure === 'network') throw new TypeError('fetch failed');
+      if (failure === 'timeout') throw new DOMException('timed out', 'TimeoutError');
+      if (failure === 'invalid') return Response.json([]);
+      return Response.json({ error: { code: failure === 'auth' ? 190 : 2 } }, {
+        status: failure === 'auth' ? 400 : failure === '429' ? 429 : 503,
+      });
+    });
+    const result = new InstagramPublisher(config, async ms => { waits.push(ms); }).containerStatus('c1');
+    if (['auth', 'invalid', 'exhaust'].includes(failure)) await assert.rejects(result);
+    else assert.equal(await result, 'FINISHED');
+    assert.equal(calls, failure === 'exhaust' ? 3 : ['auth', 'invalid'].includes(failure) ? 1 : 2);
+    assert.deepEqual(waits, failure === 'exhaust' ? [1000, 2000] : ['auth', 'invalid'].includes(failure) ? [] : [1000]);
+  });
+}
+
+test('생성/게시 POST는 503이어도 자동 재전송하지 않는다', async t => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => Response.json({ error: { code: 2 } }, { status: 503 }));
+  const publisher = new InstagramPublisher(config, async () => assert.fail('POST 재시도 금지'));
+  await assert.rejects(publisher.createContainer('https://example.com/a.jpg'), InstagramApiError);
+  await assert.rejects(publisher.publish('c1'), InstagramApiError);
+  assert.equal(mock.mock.callCount(), 2);
+});
+
+test('Instagram 조회는 Retry-After를 지키고 60초 초과는 이번 조회를 중단한다', async t => {
+  const waits: number[] = [];
+  let calls = 0;
+  const mock = t.mock.method(globalThis, 'fetch', async () => ++calls === 1
+    ? Response.json({ error: { code: 2 } }, { status: 429, headers: { 'Retry-After': '7' } })
+    : Response.json({ status_code: 'FINISHED' }));
+  const publisher = new InstagramPublisher(config, async ms => { waits.push(ms); });
+  assert.equal(await publisher.containerStatus('c1'), 'FINISHED');
+  assert.deepEqual(waits, [7000]);
+  mock.mock.mockImplementation(async () => Response.json({ error: { code: 2 } }, { status: 429, headers: { 'Retry-After': '61' } }));
+  await assert.rejects(publisher.containerStatus('c1'), InstagramApiError);
+  assert.equal(mock.mock.callCount(), 3);
+  assert.deepEqual(waits, [7000]);
+});
+
 for (const count of [1, 2]) {
   test(`feed API publishes ${count} image(s), validates containers and retains child order`, async t => {
     const containers: string[] = [];

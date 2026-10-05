@@ -1,7 +1,7 @@
-.snack .sections { top: 468px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: var(--snack-row-1, 1fr) var(--snack-row-2, 1fr); gap: 44px; column-gap: 44px; }
+.snack .sections { top: 330px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: var(--snack-row-1, 1fr) var(--snack-row-2, 1fr); gap: 48px; column-gap: 48px; align-items: start; }
 /* Long unbroken menu names must shrink inside their column, not widen the grid. */
 .snack .meal, .snack .menu { min-width: 0; }
 .story.snack .night { display: none; }
 .snack h2 { font-size: 44px; letter-spacing: -2px; }
-.snack .meal-heading { gap: 18px; }
+.snack .meal-heading { gap: 24px; }
 .snack .menu { letter-spacing: -1.5px; }

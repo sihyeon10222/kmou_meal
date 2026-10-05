@@ -4,6 +4,14 @@ import type { StoryMode } from './story-modes.js';
 import type { StoryStorage, PostRecord } from './upload-supabase.js';
 import type { InstagramPublisher } from './publish-instagram.js';
 
+/** 게시 자체는 성공했으므로 확인/기록 오류 때문에 재게시하면 안 됩니다. */
+export class PublishedStoryError extends Error {
+  constructor(readonly mediaId: string, cause: unknown) {
+    super(`Instagram 게시 성공 (${mediaId}), 후속 기록/확인 실패: ${safeError(cause)}. 재게시하지 말고 계정과 기록을 확인하세요.`, { cause });
+    this.name = 'PublishedStoryError';
+  }
+}
+
 /** 새 호출은 항상 새 게시 실행입니다. 이전 날짜별 기록을 읽거나 잠그지 않습니다. */
 export async function postStory(
   date: string, mode: StoryMode, imagePath: string,
@@ -53,6 +61,7 @@ export async function postStory(
     try { await persist(); } catch (receiptError) {
       console.error(`게시 기록 저장 실패: ${safeError(receiptError)}`);
     }
+    if (record.mediaId) throw new PublishedStoryError(record.mediaId, error);
     throw error;
   }
 }

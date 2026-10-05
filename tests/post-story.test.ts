@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { postStory } from '../src/post-story.js';
+import { postStory, PublishedStoryError } from '../src/post-story.js';
 import { StoryStorage, type PostRecord } from '../src/upload-supabase.js';
 
 test('동일 날짜/모드 재게시, legacy 기록 무시, run별 Storage 경로', async (t) => {
@@ -49,7 +49,7 @@ test('실패 기록이 다음 실행을 막지 않고 게시 후 검증 실패�
   const failed = records.at(-1)!;
   assert.equal(failed.status, 'failed');
   failPublish = false;
-  await assert.rejects(run(), /verify error/);
+  await assert.rejects(run(), error => error instanceof PublishedStoryError && error.mediaId === 'm1' && /verify error/.test(error.message));
   const published = records.at(-1)!;
   assert.notEqual(failed.runId, published.runId);
   assert.equal(published.status, 'published');

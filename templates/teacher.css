@@ -1,3 +1,1 @@
 .teacher.full .dinner { color: var(--paper); }
-.teacher.breakfast .sections, .teacher.lunch .sections, .teacher.dinner .sections { top: 530px; }
-.teacher.breakfast .meal, .teacher.lunch .meal, .teacher.dinner .meal { height: 100%; }

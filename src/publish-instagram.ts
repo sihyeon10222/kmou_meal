@@ -25,7 +25,7 @@ function errorCode(value: unknown): number | undefined {
 }
 
 export class InstagramApiError extends Error {
-  constructor(readonly httpStatus: number, readonly code?: number, readonly subcode?: number) {
+  constructor(readonly httpStatus: number, readonly code?: number, readonly subcode?: number, readonly retryAfterMs = 0) {
     super(`Instagram API 실패: HTTP ${httpStatus}, code=${code ?? '-'}, subcode=${subcode ?? '-'}`);
     this.name = 'InstagramApiError';
   }
@@ -35,6 +35,22 @@ export class InstagramPublisher {
   constructor(private readonly config: PublishConfig, private readonly sleep: (ms: number) => Promise<unknown> = delay) {}
 
   private async request(path: string, method: 'GET' | 'POST', parameters: Record<string, string>): Promise<GraphData> {
+    // 조회만 재시도합니다. 생성/게시 POST의 응답 유실은 중복 게시 위험이 있습니다.
+    for (let attempt = 1; ; attempt++) {
+      try { return await this.requestOnce(path, method, parameters); }
+      catch (error) {
+        const retryable = error instanceof InstagramApiError
+          ? error.httpStatus === 408 || error.httpStatus === 429 || error.httpStatus >= 500
+          : error instanceof TypeError || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name));
+        if (method !== 'GET' || attempt >= 3 || !retryable) throw error;
+        const serverDelay = error instanceof InstagramApiError ? error.retryAfterMs : 0;
+        if (serverDelay > 60_000) throw error;
+        await this.sleep(Math.max(1_000 * 2 ** (attempt - 1), serverDelay));
+      }
+    }
+  }
+
+  private async requestOnce(path: string, method: 'GET' | 'POST', parameters: Record<string, string>): Promise<GraphData> {
     const url = new URL(path, GRAPH_API_URL);
     const params = new URLSearchParams(parameters);
     if (method === 'GET') url.search = params.toString();
@@ -49,7 +65,11 @@ export class InstagramPublisher {
     const apiError = isGraphData(data) ? data.error : undefined;
     if (!response.ok || apiError) {
       const details = isGraphData(apiError) ? apiError : {};
-      throw new InstagramApiError(response.status, errorCode(details.code), errorCode(details.error_subcode));
+      const retryAfter = response.headers.get('retry-after');
+      const serverDelay = retryAfter === null ? 0 : /^\d+$/.test(retryAfter.trim())
+        ? Number(retryAfter) * 1_000 : Math.max(0, Date.parse(retryAfter) - Date.now());
+      throw new InstagramApiError(response.status, errorCode(details.code), errorCode(details.error_subcode),
+        Number.isNaN(serverDelay) ? 0 : serverDelay);
     }
     if (!isGraphData(data)) throw new Error('Instagram API 응답이 올바른 JSON 객체가 아닙니다.');
     return data;

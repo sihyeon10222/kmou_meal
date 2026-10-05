@@ -12,14 +12,30 @@ export interface CoopDailyMenu {
 export function parseCoopMenu(html: string, date: string): CoopDailyMenu {
   validateDate(date);
   const $ = load(html);
+  const returnedDates = $('input[name="sch_date"]').toArray();
+  if (returnedDates.some(input => $(input).val() !== date.replaceAll('-', '/'))) {
+    throw new Error(`학식 응답 날짜 오류: 요청한 ${date}의 응답이 아닙니다.`);
+  }
   const readTable = (headers: string[]): string[][] => {
     const tables = $('table').filter((_, table) => $(table).find('th').map((_, th) =>
       $(th).text().replace(/\s+/g, '').trim()).get().join('|') === headers.join('|'));
     if (tables.length !== 1) throw new Error(`학식 HTML 구조 오류: ${headers.join('|')} 테이블을 식별할 수 없습니다.`);
-    const rows = tables.find('tbody tr').filter((_, row) => {
+    const bodies = tables.children('tbody');
+    if (bodies.length !== 1) throw new Error('학식 HTML 구조 오류: 메뉴 본문을 식별할 수 없습니다.');
+    const allRows = bodies.children('tr');
+    const dateRows = allRows.filter((_, row) => {
       const cells = $(row).children('td');
-      return cells.length === headers.length && cells.toArray().every(cell => !$(cell).attr('colspan'));
+      return cells.length === 1 && cells.first().attr('colspan') === String(headers.length)
+        && /^\s*\d{4}년\s*\d{1,2}월\s*\d{1,2}일(?:\s*[월화수목금토일]요일)?\s*$/.test(cells.text());
     });
+    const rows = allRows.filter((_, row) => {
+      const cells = $(row).children('td');
+      return cells.length === headers.length && cells.toArray().every(cell =>
+        !$(cell).attr('colspan') && !$(cell).attr('rowspan'));
+    });
+    if (allRows.length !== dateRows.length + rows.length || dateRows.length > 1) {
+      throw new Error('학식 HTML 구조 오류: 예상하지 못한 메뉴 행/열입니다.');
+    }
     if (rows.length > 1) throw new Error('학식 HTML 구조 오류: 메뉴 행이 여러 개입니다.');
     if (!rows.length) return headers.map(() => []);
     return rows.first().children('td').toArray().map(cell => {

@@ -1,3 +1,1 @@
 .dormitory.full .dinner { color: var(--paper); }
-.dormitory.breakfast .sections, .dormitory.lunch .sections, .dormitory.dinner .sections { top: 530px; }
-.dormitory.breakfast .meal, .dormitory.lunch .meal, .dormitory.dinner .meal { height: 100%; }

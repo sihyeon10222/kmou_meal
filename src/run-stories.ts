@@ -3,6 +3,7 @@ import { fetchDailyMenu } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
 import { resolveRun, type RunMode, type StoryMode } from './story-modes.js';
 import { dormitoryStory, coopStory, type StoryRenderData } from './story-data.js';
+import { PublishedStoryError } from './post-story.js';
 
 export interface RunResult {
   mode: StoryMode;
@@ -10,6 +11,10 @@ export interface RunResult {
   status: 'published' | 'preview' | 'skipped' | 'failed';
   imagePath?: string;
   error?: string;
+  warning?: string;
+  mediaId?: string;
+  emptyMenu?: boolean;
+  stage?: 'fetch' | 'render' | 'publish';
 }
 export interface RunDependencies {
   fetchDormitory: typeof fetchDailyMenu;
@@ -32,20 +37,41 @@ export async function runStories(mode: RunMode, baseDate: string, preview: boole
       continue;
     }
     try {
+      result.stage = 'fetch';
       const data = request.restaurant === 'dormitory' || request.restaurant === 'badaro'
         ? dormitoryStory(request, await (request.restaurant === 'dormitory'
           ? deps.fetchDormitory(request.targetDate) : deps.fetchBadaro(request.targetDate)))
-        : coopStory(request, await (coop ??= deps.fetchCoop(request.targetDate)));
-      if (!preview && data.sections.every(section => section.items.length === 0)) {
-        throw new Error(`${request.targetDate} ${request.restaurant}: 게시할 식단이 없습니다.`);
+        : coopStory(request, await (coop ??= deps.fetchCoop(request.targetDate).catch(error => {
+          coop = undefined;
+          throw error;
+        })));
+      result.emptyMenu = data.sections.every(section => section.items.length === 0);
+      if (result.emptyMenu) {
+        console.info(`${request.targetDate} ${request.restaurant}: 정상 조회, 등록된 식단 없음 안내를 생성합니다.`);
       }
+      result.stage = 'render';
       result.imagePath = await deps.render(data);
-      if (!preview) await deps.publish(data, result.imagePath);
+      if (!preview) {
+        result.stage = 'publish';
+        const posted = await deps.publish(data, result.imagePath);
+        if (typeof posted === 'object' && posted !== null && 'mediaId' in posted && typeof posted.mediaId === 'string') {
+          result.mediaId = posted.mediaId;
+        }
+      }
       result.status = preview ? 'preview' : 'published';
+      delete result.stage;
     } catch (error) {
-      result.status = 'failed';
-      result.error = safeError(error);
-      console.error(`${request.mode}: ${result.error}`);
+      if (error instanceof PublishedStoryError) {
+        result.status = 'published';
+        result.mediaId = error.mediaId;
+        result.warning = safeError(error);
+        delete result.stage;
+        console.warn(`${request.mode}: ${result.warning}`);
+      } else {
+        result.status = 'failed';
+        result.error = safeError(error);
+        console.error(`${request.mode} (${result.stage}): ${result.error}`);
+      }
     }
     results.push(result);
   }
