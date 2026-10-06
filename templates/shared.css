@@ -7,13 +7,13 @@ header { position: absolute; left: 58px; right: 58px; top: 164px; display: flex;
 h1 { font-size: 72px; font-weight: 760; letter-spacing: -2px; margin: 0; white-space: nowrap; }
 .date { font-size: 72px; font-weight: 400; text-align: left; white-space: nowrap; }
 .meal { display: flex; flex-direction: column; min-height: 0; }
-.sections { position: absolute; left: 58px; right: 58px; top: 330px; bottom: 100px; min-height: 0; }
+.sections { position: absolute; left: 58px; right: 58px; top: 330px; bottom: 58px; min-height: 0; }
 .meal-heading { flex: 0 0 78px; display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #183d4426; padding-bottom: 25px; }
 h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px; margin: 0; }
 .symbol { width: 48px; height: 48px; display: inline-block; flex-shrink: 0; }
 .sun { border-radius: 50%; background: #df5e27; box-shadow: 0 0 0 7px #ed956450; width: 34px; height: 34px; margin: 7px; }
 .moon { border-radius: 50%; box-shadow: inset 14px -9px 0 0 var(--moon); transform: rotate(-15deg); }
-.menu { flex: none; min-height: 0; padding-top: 24px; padding-bottom: 4px; display: flex; flex-direction: column; gap: 25px; font-size: 72px; font-weight: 560; line-height: 1.35; letter-spacing: -1px; }
+.menu { flex: none; min-height: 0; padding-top: 24px; padding-bottom: 12px; display: flex; flex-direction: column; gap: 16px; font-size: 72px; font-weight: 560; line-height: 1.2; letter-spacing: -1px; }
 .dish { margin: 0; flex-shrink: 0; overflow-wrap: normal; word-break: keep-all; }
 .empty { opacity: .75; font-weight: 450 !important; }
 .night { position: absolute; inset: var(--night-start, 1038px) 0 0; background: var(--blue); }

@@ -83,8 +83,8 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
 
     const setMenuTypography = (menu: HTMLElement, size: number) => {
       menu.style.fontSize = `${size}px`;
-      menu.style.gap = `${Math.max(10, Math.round(size * .35))}px`;
-      menu.style.lineHeight = size <= 36 ? '1.25' : '1.35';
+      menu.style.gap = `${Math.max(10, Math.round(size * .22))}px`;
+      menu.style.lineHeight = '1.2';
     };
     const measureSection = (section: HTMLElement, size: number) => {
       const clone = section.cloneNode(true) as HTMLElement;
@@ -100,7 +100,7 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
       return height;
     };
     const headerBox = story.querySelector('header')!.getBoundingClientRect();
-    const available = 1920 - 100 - headerBox.bottom;
+    const available = 1920 - 58 - headerBox.bottom;
     const snack = story.classList.contains('snack');
     const rowCount = snack ? 2 : sections.length;
     const rowHeights = (heights: number[]) => snack
@@ -116,7 +116,7 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
         setMenuTypography(menu, size);
         return menu.scrollWidth <= menu.clientWidth + tolerance;
       });
-      if (fitsWidth && rows.reduce((sum, height) => sum + height, 0) + 48 * (rowCount + 1) <= available + tolerance) {
+      if (fitsWidth && rows.reduce((sum, height) => sum + height, 0) + 48 * rowCount <= available + tolerance) {
         best = size;
         heights = measured;
         break;
@@ -124,9 +124,9 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
     }
     if (!best) throw new Error('메뉴가 이미지 영역을 초과합니다. 최소 글자 크기와 여백에서도 들어가지 않습니다.');
     const rows = rowHeights(heights);
-    const gap = (available - rows.reduce((sum, height) => sum + height, 0)) / (rowCount + 1);
+    const gap = (available - rows.reduce((sum, height) => sum + height, 0)) / rowCount;
     sectionsRoot.style.top = `${headerBox.bottom + gap}px`;
-    sectionsRoot.style.bottom = `${100 + gap}px`;
+    sectionsRoot.style.bottom = `58px`;
     sectionsRoot.style.rowGap = `${gap}px`;
     if (snack) {
       sectionsRoot.style.setProperty('--snack-row-1', `${rows[0]}px`);

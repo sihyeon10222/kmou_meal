@@ -207,7 +207,7 @@ test('하루 세 끼 각 다섯 항목은 넓어진 영역에서 큰 글자와 �
     for (const menu of html('.menu').toArray()) {
       const style = html(menu).attr('style')!;
       assert.ok(Number(/font-size:\s*(\d+)px/.exec(style)![1]) >= 44);
-      assert.equal(Number(/gap:\s*(\d+)px/.exec(style)![1]), Math.max(10, Math.round(Number(/font-size:\s*(\d+)px/.exec(style)![1]) * .35)));
+      assert.equal(Number(/gap:\s*(\d+)px/.exec(style)![1]), Math.max(10, Math.round(Number(/font-size:\s*(\d+)px/.exec(style)![1]) * .22)));
     }
     assert.equal(html('.dish').length, 15);
   } finally {
@@ -241,7 +241,8 @@ test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 �
         const rows = snack ? [boxes.slice(0, 2), boxes.slice(2)] : boxes.map(box => [box]);
         const gaps = [Math.min(...rows[0]!.map(box => box.top)) - header.bottom];
         for (let index = 1; index < rows.length; index++) gaps.push(Math.min(...rows[index]!.map(box => box.top)) - Math.max(...rows[index - 1]!.map(box => box.bottom)));
-        gaps.push(1820 - Math.max(...rows.at(-1)!.map(box => box.bottom)));
+        const bottomGap = 1920 - Math.max(...rows.at(-1)!.map(box => box.bottom));
+        if (Math.abs(bottomGap - 58) > 1) throw new Error(`하단 여백: ${bottomGap}`);
         const typography = meals.map(meal => {
           const menu = meal.querySelector('.menu')!;
           const heading = meal.querySelector('.meal-heading')!;
