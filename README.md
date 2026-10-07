@@ -2,6 +2,14 @@
 
 국립한국해양대학교 기숙사·학식 스낵코너·교직원 식당 식단을 Instagram Story와 주간 게시물로 만드는 Node.js + TypeScript 프로젝트입니다. 승선생활관도 매일 Story와 주간 게시물로 제공합니다.
 
+<p align="center">
+  <img src="assets/readme/kmou-meal-profile.jpg" alt="KMOU Meal Instagram profile" width="320">
+</p>
+
+<p align="center">
+  <img src="assets/readme/kmou-meal-showcase.jpg" alt="KMOU Meal Instagram Story and weekly feed preview">
+</p>
+
 ## 실행 명령
 
 | 명령 | 동작 |
