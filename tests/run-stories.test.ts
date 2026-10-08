@@ -146,3 +146,49 @@ test('게시 성공 후 확인 오류는 media ID가 있는 published 경고로 
   assert.match(results[0]?.warning ?? '', /재게시하지 말고/);
   assert.equal(results[0]?.error, undefined);
 });
+
+for (const failure of ['prepare', 'render', 'both-renders', 'publish', 'preview'] as const) {
+  test(`AI 선택 단계 장애 복구: ${failure}`, async () => {
+    let renders = 0, publishes = 0;
+    const results = await runStories('today_badaro_full', '2026-10-08', failure === 'preview', {
+      fetchDormitory: async () => null, fetchCoop: async () => emptyCoop,
+      fetchBadaro: async () => ({ date: '2026/10/08', breakfast: [], lunch: ['밥', '불고기'], dinner: [] }),
+      prepareImages: async data => {
+        data.sections[1]!.image = { dataUrl: 'invalid-image', width: 1024, height: 736 };
+        data.aiImages = [{ meal: 'lunch', status: 'generated', imagePath: 'broken.png' }];
+        if (failure === 'prepare') {
+          data.sections[1]!.items = ['변경된 메뉴'];
+          throw new Error('AI 준비 실패');
+        }
+        return data;
+      },
+      render: async data => {
+        renders++;
+        assert.deepEqual(data.sections[1]!.items, ['밥', '불고기']);
+        if (failure === 'both-renders' || (failure !== 'publish' && data.sections.some(s => s.image))) {
+          throw new Error('렌더링 실패');
+        }
+        if (failure !== 'publish') assert.ok(data.sections.every(s => !s.image));
+        return 'menu-only.jpg';
+      },
+      publish: async (data, path) => {
+        publishes++;
+        if (failure === 'publish') throw new Error('게시 실패');
+        assert.equal(path, 'menu-only.jpg');
+        assert.ok(data.sections.every(s => !s.image));
+        return { mediaId: 'posted-once' };
+      },
+    });
+    const result = results[0]!;
+    assert.equal(renders, ['prepare', 'publish'].includes(failure) ? 1 : 2);
+    assert.equal(publishes, ['both-renders', 'preview'].includes(failure) ? 0 : 1);
+    assert.equal(result.status, ['both-renders', 'publish'].includes(failure) ? 'failed' : failure === 'preview' ? 'preview' : 'published');
+    assert.equal(result.warning, undefined);
+    if (failure !== 'publish') {
+      assert.equal(result.aiImages?.find(image => image.meal === 'lunch')?.status, 'failed');
+      assert.equal(result.aiImages?.find(image => image.meal === 'lunch')?.imagePath, undefined);
+    }
+    if (failure === 'both-renders') assert.equal(result.stage, 'render');
+    if (failure === 'publish') assert.equal(result.stage, 'publish');
+  });
+}
