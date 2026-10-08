@@ -62,13 +62,15 @@ test('음식 사진은 세 식당 전체·단일 끼니와 긴 메뉴에서 겹�
           return { width: box?.width, gap: box ? box.left - menu.getBoundingClientRect().right : undefined,
             font: getComputedStyle(menu).fontSize, fits: menu.scrollWidth <= menu.clientWidth + 1,
             inMeal: !box || box.bottom <= meal.getBoundingClientRect().bottom + 1,
-            visible: !photo || getComputedStyle(photo).display !== 'none' };
+            visible: !photo || getComputedStyle(photo).display !== 'none',
+            edgeBlend: !photo || (getComputedStyle(photo).maskImage !== 'none' && getComputedStyle(photo).maskComposite.split(',').every(value => value.trim() === 'intersect')) };
         });
       });
       assert.equal(load(html)('.breakfast .food-photo').length,
         shouldGenerateFoodImage(data.request.restaurant, 'breakfast') && data.sections.some(section => section.key === 'breakfast') ? 1 : 0);
       for (const entry of layout) {
         assert.ok(entry.fits && entry.inMeal && entry.visible);
+        assert.ok(entry.edgeBlend);
         assert.equal(entry.font, layout[0]!.font);
         if (entry.width !== undefined) {
           assert.ok(entry.width >= 220 && entry.width <= 420);

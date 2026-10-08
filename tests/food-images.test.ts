@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { createFoodImagePreparer, foodItems, foodPrompt, generateFood, loadFoodConfig, foodBackground, translateFoodMenu, MENU_TRANSLATION_MODEL } from '../src/food-images.js';
+import { createFoodImagePreparer, foodItems, foodPrompt, generateFood, loadFoodConfig, foodBackground, matchFoodBackground, translateFoodMenu, MENU_TRANSLATION_MODEL } from '../src/food-images.js';
 import { GENERAL_TRAY, ROUND_TRAY, selectTray, shouldGenerateFoodImage } from '../src/tray-profiles.js';
 import { dormitoryStory } from '../src/story-data.js';
 import { resolveStoryRequest } from '../src/story-modes.js';
@@ -21,6 +21,28 @@ const translated = (init: RequestInit | undefined) => {
   const foods = JSON.parse(body.messages[1].content) as string[];
   return Response.json({ success: true, result: { response: JSON.stringify({ foods: foods.map((item, index) => item === '불고기' ? 'bulgogi' : `translated dish ${index}`) }) } });
 };
+
+test('끼니 배경색을 맞춰도 식판과 내부의 비슷한 색 음식은 그대로 유지한다', async () => {
+  const pixels = Buffer.alloc(100 * 80 * 3);
+  for (let y = 0; y < 80; y++) for (let x = 0; x < 100; x++) {
+    const tray = x >= 10 && x < 90 && y >= 10 && y < 70;
+    const rgb = tray ? [248, 228, 92] : [10, 50, 230];
+    pixels.set(rgb, (y * 100 + x) * 3);
+  }
+  // Food matching the original background is enclosed by the tray rim.
+  pixels.set([10, 50, 230], (40 * 100 + 50) * 3);
+  const input = await sharp(pixels, { raw: { width: 100, height: 80, channels: 3 } }).png().toBuffer();
+  for (const meal of ['breakfast', 'lunch', 'dinner']) {
+    const color = foodBackground('full', meal);
+    const { data, info } = await sharp(await matchFoodBackground(input, color)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.equal(info.width, 100); assert.equal(info.height, 80);
+    assert.deepEqual([...data.subarray(0, 3)], [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16)));
+    for (let y = 10; y < 70; y++) for (let x = 10; x < 90; x++) {
+      const offset = (y * 100 + x) * 3;
+      assert.deepEqual(data.subarray(offset, offset + 3), pixels.subarray(offset, offset + 3));
+    }
+  }
+});
 
 test('식당별 식판 선택과 기본 비활성화/인증 설정', () => {
   assert.equal(loadFoodConfig({}), undefined);
@@ -55,6 +77,11 @@ test('메뉴와 식판 형태를 전달하고 음식별 좌표나 참고 이미�
   assert.match(foodPrompt(ROUND_TRAY, ['토마토스파게티']), /exactly 5 recessed compartments/);
   assert.match(foodPrompt(ROUND_TRAY, ['돈가스']), /golden breadcrumb crust/);
   assert.match(prompt, /#2259b1/);
+  assert.match(prompt, /94% of the image/);
+  assert.match(prompt, /80-90% of each occupied well/);
+  assert.ok(prompt.indexOf('exact sRGB #2259b1') < prompt.indexOf('Serving positions:'));
+  assert.match(foodPrompt(GENERAL_TRAY, items, '#ffffff'), /flat pure white/);
+  assert.match(foodPrompt(GENERAL_TRAY, items, '#f5f1e7'), /flat warm ivory/);
   assert.ok(!prompt.includes('image 0') && !prompt.includes('center ') && !prompt.includes('assigned compartment'));
   assert.equal(foodBackground('full', 'breakfast'), '#ffffff');
   assert.equal(foodBackground('full', 'dinner'), '#2259b1');

@@ -19,7 +19,12 @@ h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px;
 .with-food .meal-body { display: grid; grid-template-columns: minmax(0, 1fr) var(--food-width, 420px); column-gap: 24px; align-items: center; }
 .with-food .menu { min-width: 0; overflow-wrap: anywhere; }
 .with-food .dish { overflow-wrap: anywhere; }
-.food-photo { display: block; width: var(--food-width, 420px); height: auto; }
+.food-photo {
+  display: block; width: var(--food-width, 420px); height: auto;
+  /* Blend only the outer background margin; keep the tray and food opaque. */
+  mask-image: linear-gradient(to right, transparent, #000 2.5%, #000 97.5%, transparent), linear-gradient(to bottom, transparent, #000 2.5%, #000 97.5%, transparent);
+  mask-composite: intersect;
+}
 .empty { opacity: .75; font-weight: 450 !important; }
 .night { position: absolute; inset: var(--night-start, 1038px) 0 0; background: var(--blue); }
 .dinner .meal-heading { border-color: #f5f1e738; }

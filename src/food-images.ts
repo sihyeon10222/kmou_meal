@@ -8,7 +8,7 @@ import { selectTray, shouldGenerateFoodImage, type TrayProfile } from './tray-pr
 
 export const FOOD_MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
 export const MENU_TRANSLATION_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-const PROMPT_VERSION = 8;
+const PROMPT_VERSION = 10;
 export interface FoodConfig { accountId: string; token: string }
 export function loadFoodConfig(env: NodeJS.ProcessEnv = process.env): FoodConfig | undefined {
   if (env.STORY_AI_ENABLED !== 'true') return undefined;
@@ -34,12 +34,15 @@ export function foodPrompt(profile: TrayProfile, items: string[], background = '
       : '';
     return `- ${hint ? `${item} (${hint})` : item}`;
   });
-  // Put the meal before tray geometry so long shape descriptions cannot crowd it out.
-  return `Photograph this exact Korean cafeteria meal. Rice and side dishes are served DIRECTLY inside the tray's molded recessed compartments; ONLY SOUP is served in one pale-green round soup bowl on the tray:
+  const backgroundName = background === '#ffffff' ? 'pure white' : background === '#2259b1' ? 'royal blue' : background === '#f5f1e7' ? 'warm ivory' : 'solid color';
+  // Keep food, framing and background ahead of the longer tray geometry description.
+  return `Close-up overhead food photograph. Background: perfectly uniform flat ${backgroundName}, exact sRGB ${background}, edge-to-edge outside the tray. No gray or white tabletop, no gradient, vignette, texture, border or rectangular photo panel. Keep all outer image edges the same ${background}; no cast shadow outside the tray.
+The whole horizontal tray fills 94% of the image width and height, with only a 3% even background margin, fully visible without cropping. Large food-bearing compartments with thin rims and dividers. Generous cafeteria servings fill 80-90% of each occupied well, so food dominates the view rather than empty yellow plastic. The soup bowl fills its well. Food texture must remain clearly visible at story size.
+Photograph this exact Korean cafeteria meal. Rice and side dishes are served DIRECTLY inside the tray's molded recessed compartments; ONLY SOUP is served in one pale-green round soup bowl on the tray:
 ${foods.join('\n')}
 Serving positions: ${profile.servingLayout}
 Generate the entire tray, all food, the soup bowl, lighting and shadows together as ONE realistic photograph. Rice and side dishes touch the yellow plastic directly. If soup is listed, put it in exactly ONE pale-green round bowl at the specified soup position. Never pour soup directly into the plastic tray. No plates, rice bowls, side-dish bowls, ramekins, paper liners or extra containers. Natural portions and appetizing textures. Rice separate from main dishes, side dishes separate. Include every listed food once; leave unused wells empty. No extra food, utensils, lettering or props.
-Perfect 90-degree overhead view, horizontal tray, no rotation. Entire tray visible with a small even margin, soft studio lighting. Plain matte background ${background}. Normal complete photograph, no transparency checkerboard, no collage.
+Perfect 90-degree overhead view, horizontal tray, no rotation. Soft even lighting on the food, reflections confined to the tray. Normal complete photograph, no transparency checkerboard, no collage.
 Tray shape:
 ${profile.prompt}`;
 }
@@ -47,6 +50,42 @@ ${profile.prompt}`;
 export function foodBackground(scope: StoryRenderData['request']['scope'], meal: string): string {
   const section = scope === 'full' ? meal : scope;
   return section === 'breakfast' ? '#ffffff' : section === 'dinner' ? '#2259b1' : '#f5f1e7';
+}
+
+// Normalize only background connected to the image boundary. Never cross the yellow tray rim.
+export async function matchFoodBackground(input: Buffer, color: string): Promise<Buffer> {
+  const { data, info } = await sharp(input).toColourspace('srgb').ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
+  const count = width * height;
+  const corners = [0, width - 1, (height - 1) * width, count - 1].map(pixel => [...data.subarray(pixel * 4, pixel * 4 + 3)]);
+  const visited = new Uint8Array(count);
+  const queue = new Uint32Array(count);
+  let end = 0;
+  const visit = (pixel: number) => {
+    if (visited[pixel]) return;
+    visited[pixel] = 1;
+    const offset = pixel * 4;
+    const r = data[offset]!, g = data[offset + 1]!, b = data[offset + 2]!;
+    const yellowTray = r > 160 && g > 125 && b < r * .7 && b < g * .75;
+    if (!yellowTray && (data[offset + 3]! < 16 || corners.some(sample => Math.max(Math.abs(r - sample[0]!), Math.abs(g - sample[1]!), Math.abs(b - sample[2]!)) <= 72))) queue[end++] = pixel;
+  };
+  for (let x = 0; x < width; x++) { visit(x); visit((height - 1) * width + x); }
+  for (let y = 0; y < height; y++) { visit(y * width); visit(y * width + width - 1); }
+  for (let cursor = 0; cursor < end; cursor++) {
+    const pixel = queue[cursor]!;
+    if (pixel % width) visit(pixel - 1);
+    if (pixel % width < width - 1) visit(pixel + 1);
+    if (pixel >= width) visit(pixel - width);
+    if (pixel < count - width) visit(pixel + width);
+  }
+  // A flat or unrecognizable image has no reliable tray boundary; leave it intact.
+  if (end > count * .95) return sharp(input).png().toBuffer();
+  const rgb = [1, 3, 5].map(start => Number.parseInt(color.slice(start, start + 2), 16));
+  for (let cursor = 0; cursor < end; cursor++) {
+    const offset = queue[cursor]! * 4;
+    data[offset] = rgb[0]!; data[offset + 1] = rgb[1]!; data[offset + 2] = rgb[2]!; data[offset + 3] = 255;
+  }
+  return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();
 }
 
 class HttpError extends Error { constructor(readonly status: number) { super(`Cloudflare AI HTTP ${status}`); } }
@@ -144,8 +183,8 @@ export function createFoodImagePreparer(options: FoodPreparerOptions = {}) {
           const status = image ? 'cached' : 'generated';
           if (!image) {
             const englishFoods = await translateFoodMenu(config, section.items, options.client);
-            // Preserve every pixel of the complete AI output: lossless PNG encoding only.
-            image = await sharp(await generateFood(config, profile, section.items, { ...options.client, background, englishFoods }), { limitInputPixels: 20_000_000 }).png().toBuffer();
+            // Keep the complete generated tray and food; only match the exterior background color.
+            image = await matchFoodBackground(await generateFood(config, profile, section.items, { ...options.client, background, englishFoods }), background);
             await mkdir(cacheDir, { recursive: true });
             temporary = `${imagePath}.${randomUUID()}.tmp`;
             await writeFile(temporary, image);
