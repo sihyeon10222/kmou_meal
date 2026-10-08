@@ -4,7 +4,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { createFoodImagePreparer, foodItems, foodPrompt, generateFood, loadFoodConfig, foodBackground, matchFoodBackground, translateFoodMenu, MENU_TRANSLATION_MODEL } from '../src/food-images.js';
+import { createFoodImagePreparer, foodItems, foodPrompt, generateFood, loadFoodConfig, foodBackground, matchFoodBackground, frameFoodImage, translateFoodMenu, MENU_TRANSLATION_MODEL } from '../src/food-images.js';
+import { mealPositions, type FoodDescription } from "../src/food-prompt.js";
 import { GENERAL_TRAY, ROUND_TRAY, selectTray, shouldGenerateFoodImage } from '../src/tray-profiles.js';
 import { dormitoryStory } from '../src/story-data.js';
 import { resolveStoryRequest } from '../src/story-modes.js';
@@ -19,7 +20,7 @@ const ok = () => Response.json({ success: true, result: { image: generated.toStr
 const translated = (init: RequestInit | undefined) => {
   const body = JSON.parse(String(init!.body));
   const foods = JSON.parse(body.messages[1].content) as string[];
-  return Response.json({ success: true, result: { response: JSON.stringify({ foods: foods.map((item, index) => item === '불고기' ? 'bulgogi' : `translated dish ${index}`) }) } });
+  return Response.json({ success: true, result: { response: JSON.stringify({ foods: foods.map((item, index) => ({ description: item === '불고기' ? 'bulgogi' : `translated dish ${index}`, kind: item === '밥' ? 'rice' : 'side' })) }) } });
 };
 
 test('끼니 배경색을 맞춰도 식판과 내부의 비슷한 색 음식은 그대로 유지한다', async () => {
@@ -36,12 +37,37 @@ test('끼니 배경색을 맞춰도 식판과 내부의 비슷한 색 음식은 
     const color = foodBackground('full', meal);
     const { data, info } = await sharp(await matchFoodBackground(input, color)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
     assert.equal(info.width, 100); assert.equal(info.height, 80);
-    assert.deepEqual([...data.subarray(0, 3)], [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16)));
+    for (const pixel of [0, 99, 79 * 100, 80 * 100 - 1]) assert.deepEqual([...data.subarray(pixel * 3, pixel * 3 + 3)], [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16)));
     for (let y = 10; y < 70; y++) for (let x = 10; x < 90; x++) {
       const offset = (y * 100 + x) * 3;
       assert.deepEqual(data.subarray(offset, offset + 3), pixels.subarray(offset, offset + 3));
     }
   }
+});
+
+test('식판 바깥 여백만 줄이고 음식 영역의 크기와 픽셀은 바꾸지 않는다', async () => {
+  const input = await sharp({ create: { width: 600, height: 400, channels: 3, background: '#f5f1e7' } }).composite([
+    { input: await sharp({ create: { width: 400, height: 250, channels: 3, background: '#f8e45c' } }).png().toBuffer(), left: 100, top: 75 },
+  ]).png().toBuffer();
+  const framed = await frameFoodImage(input, '#f5f1e7');
+  const { width, height } = await sharp(framed).metadata();
+  assert.equal(width, 424); assert.equal(height, 274);
+  assert.deepEqual(await sharp(framed).extract({ left: 12, top: 12, width: 400, height: 250 }).raw().toBuffer(), await sharp(input).extract({ left: 100, top: 75, width: 400, height: 250 }).raw().toBuffer());
+});
+
+test('일일 무료 한도 소진은 같은 이미지 재시도와 남은 끼니 호출을 중단한다', async () => {
+  const limited = () => Response.json({ success: false, errors: [{ code: 4006, message: 'you have used up your daily free allocation of 10,000 neurons' }] }, { status: 429 });
+  let calls = 0;
+  await assert.rejects(generateFood(config, GENERAL_TRAY, ['밥'], { fetch: async () => { calls++; return limited(); }, sleep: async () => assert.fail('daily quota must not retry') }), /일일 무료 한도/);
+  assert.equal(calls, 1);
+  calls = 0;
+  const cacheDir = await mkdtemp(join(tmpdir(), 'kmou-food-quota-'));
+  try {
+    const data = dormitoryStory(resolveStoryRequest('today_badaro_full', '2026-10-08'), { date: '2026/10/08', breakfast: ['밥'], lunch: ['국'], dinner: ['불고기'] });
+    const prepared = await createFoodImagePreparer({ env, cacheDir, client: { fetch: async () => { calls++; return limited(); } } })(data);
+    assert.ok(calls >= 1 && calls <= 2, 'only requests already in flight may hit the quota');
+    assert.ok(prepared.aiImages!.every(image => image.status === 'failed' && image.error?.includes('일일 무료 한도')));
+  } finally { await rm(cacheDir, { recursive: true, force: true }); }
 });
 
 test('식당별 식판 선택과 기본 비활성화/인증 설정', () => {
@@ -57,42 +83,42 @@ test('식당별 식판 선택과 기본 비활성화/인증 설정', () => {
   assert.equal(safeError(new Error(`failed ${config.token}`), env), 'failed [REDACTED]');
 });
 
-test('메뉴와 식판 형태를 전달하고 음식별 좌표나 참고 이미지를 강제하지 않는다', () => {
-  assert.deepEqual(foodItems(['*대체공휴일 미운영', '조식 미운영', '휴무', '등록된 식단 없음']), []);
-  assert.deepEqual(foodItems(['우유or두유/시리얼', '밥/김치', '토스트&잼']), ['우유', '시리얼', '밥', '김치', '토스트&잼']);
-  const items = ['쌀밥', '된장찌개', '불고기', '김치', '사과'];
-  const prompt = foodPrompt(GENERAL_TRAY, items, '#2259b1');
-  for (const item of items) assert.ok(prompt.includes(`- ${item}`));
-  assert.ok(prompt.indexOf('- 쌀밥') < prompt.indexOf('Tray shape:'));
-  assert.match(prompt, /Generate the entire tray, all food/);
-  assert.match(prompt, /DIRECTLY inside the tray's molded recessed compartments/);
-  assert.match(prompt, /ONLY SOUP is served in one pale-green round soup bowl/);
-  assert.match(prompt, /No plates, rice bowls, side-dish bowls/);
-  assert.match(prompt, /Never pour soup directly into the plastic tray/);
-  assert.match(prompt, /rice ONLY in the large BOTTOM-LEFT compartment/);
-  assert.match(prompt, /soup ONLY in ONE pale-green round soup bowl placed inside the large BOTTOM-RIGHT compartment/);
-  assert.match(prompt, /kimchi in the TOP-RIGHT rectangular well/);
-  assert.match(foodPrompt(ROUND_TRAY, ['돈가스']), /LEFT circular compartment/);
-  assert.match(prompt, /exactly 8 recessed compartments/);
-  assert.match(foodPrompt(ROUND_TRAY, ['토마토스파게티']), /exactly 5 recessed compartments/);
-  assert.match(foodPrompt(ROUND_TRAY, ['돈가스']), /golden breadcrumb crust/);
-  assert.match(prompt, /#2259b1/);
-  assert.match(prompt, /94% of the image/);
-  assert.match(prompt, /80-90% of each occupied well/);
-  assert.ok(prompt.indexOf('exact sRGB #2259b1') < prompt.indexOf('Serving positions:'));
-  assert.match(foodPrompt(GENERAL_TRAY, items, '#ffffff'), /flat pure white/);
-  assert.match(foodPrompt(GENERAL_TRAY, items, '#f5f1e7'), /flat warm ivory/);
-  assert.ok(!prompt.includes('image 0') && !prompt.includes('center ') && !prompt.includes('assigned compartment'));
-  assert.equal(foodBackground('full', 'breakfast'), '#ffffff');
-  assert.equal(foodBackground('full', 'dinner'), '#2259b1');
-  assert.equal(foodBackground('lunch', 'lunch'), '#f5f1e7');
+test("메뉴 정리와 위치 지정은 모든 음식을 보존하며 없는 밥과 국을 추가하지 않는다", () => {
+  assert.deepEqual(foodItems(["조식 미운영", "휴무", "등록된 식단 없음"]), []);
+  assert.deepEqual(foodItems(["우유or두유/시리얼", "밥/김치", "토스트&잼"]), ["우유", "시리얼", "밥", "김치", "토스트&잼"]);
+  for (const item of ["밥/잡곡밥", "밥/작곡밥", "쌀밥 / 흑미밥"]) assert.deepEqual(foodItems([item]), ["밥"]);
+  const foods: FoodDescription[] = [
+    { description: "plain steamed white rice", kind: "rice" }, { description: "seaweed soup", kind: "soup" },
+    { description: "spicy chicken", kind: "main" }, { description: "pumpkin and sweetcorn", kind: "side" },
+    { description: "perilla leaves", kind: "side" }, { description: "garlic stems", kind: "side" },
+    { description: "napa kimchi", kind: "kimchi" }, { description: "orange wedges", kind: "dessert" },
+  ];
+  const positions = mealPositions(GENERAL_TRAY, foods);
+  for (const food of foods) assert.equal(positions.filter(line => line.includes(food.description)).length, 1);
+  assert.ok(positions.find(line => line.includes("white rice"))!.startsWith("BOTTOM LEFT"));
+  assert.ok(positions.find(line => line.includes("seaweed soup"))!.startsWith("BOTTOM RIGHT"));
+  assert.ok(positions.find(line => line.includes("napa kimchi"))!.startsWith("TOP RIGHT"));
+  const pasta: FoodDescription[] = [{ description: "tomato spaghetti", kind: "main" }, { description: "garlic bread", kind: "side" }, { description: "green salad", kind: "side" }, { description: "cucumber pickles", kind: "side" }];
+  const round = mealPositions(ROUND_TRAY, pasta);
+  assert.ok(round[0]!.startsWith("LEFT large circular"));
+  assert.ok(round.some(line => line.includes("NO rice")) && round.some(line => line.includes("NO soup bowl")));
+  assert.ok(round.find(line => line.includes("pickles"))!.startsWith("LOWER RIGHT"));
+  for (const meal of ["breakfast", "lunch", "dinner"] as const) {
+    const background = foodBackground("full", meal);
+    const prompt = foodPrompt(GENERAL_TRAY, [], background, foods);
+    assert.ok(foods.every(food => prompt.includes(food.description)));
+    assert.ok(prompt.includes(background));
+    assert.ok(prompt.indexOf("spicy chicken") < prompt.indexOf("Tray shape:"));
+    assert.ok(prompt.length < 2600, "normal meals should keep the prompt concise");
+    assert.equal(foodBackground(meal, meal), background);
+  }
 });
 
 test('Cloudflare multipart 입력과 정상 응답', async () => {
   let calls = 0;
   const mock: typeof fetch = async (url, init) => {
     calls++;
-    assert.match(String(url), /accounts\/a{32}\/ai\/run\/@cf\/black-forest-labs\/flux-2-klein-4b$/);
+    assert.match(String(url), /accounts\/a{32}\/ai\/run\/@cf\/black-forest-labs\/flux-2-klein-9b$/);
     assert.equal((init!.headers as Record<string, string>).Authorization, `Bearer ${config.token}`);
     assert.ok(!('Content-Type' in (init!.headers as Record<string, string>)));
     const form = init!.body as FormData;
@@ -220,7 +246,7 @@ test('승선생활관만 아침 생성: 다른 식당은 캐시 조회·API 호�
 });
 
 test('영어 메뉴 번역은 원문별 항목 수를 보존하고 이미지 프롬프트에 사용한다', async () => {
-  const english = ['steamed rice', 'Korean bulgogi beef', 'kimchi'];
+  const english: FoodDescription[] = [{ description: 'plain steamed white rice', kind: 'rice' }, { description: 'Korean bulgogi beef', kind: 'main' }, { description: 'kimchi', kind: 'kimchi' }];
   const foods = await translateFoodMenu(config, ['밥', '불고기', '김치'], { fetch: async (url, init) => {
     assert.ok(String(url).endsWith(MENU_TRANSLATION_MODEL));
     const body = JSON.parse(String(init!.body));
@@ -231,11 +257,26 @@ test('영어 메뉴 번역은 원문별 항목 수를 보존하고 이미지 프
   assert.deepEqual(foods, english);
   await generateFood(config, GENERAL_TRAY, ['밥', '불고기', '김치'], { englishFoods: foods, fetch: async (_url, init) => {
     const prompt = String((init!.body as FormData).get('prompt'));
-    assert.ok(english.every(item => prompt.includes(`- ${item}`)));
+    assert.ok(english.every(item => prompt.includes(item.description)));
     assert.ok(!prompt.includes('- 불고기'));
     return ok();
   } });
-  for (const response of [null, { foods: ['missing'] }, { foods: ['', 'beef', 'kimchi'] }, { foods: ['밥', 'beef', 'kimchi'] }]) {
+  for (const response of [null, { foods: ['missing'] }, { foods: ['', 'beef', 'kimchi'] }, { foods: ['밥', 'beef', 'kimchi'] },
+    ...[{ description: '', kind: 'rice' }, { description: '밥', kind: 'rice' }, { description: 'rice', kind: 'unknown' }, { description: 'x'.repeat(201), kind: 'rice' }]
+      .map(item => ({ foods: [item, ...english.slice(1)] }))]) {
     await assert.rejects(translateFoodMenu(config, ['밥', '불고기', '김치'], { fetch: async () => Response.json({ success: true, result: { response } }) }));
   }
+});
+
+
+test('밥 선택지는 번역 모델이 잡곡으로 응답해도 흰밥 한 종류로 고정한다', async () => {
+  const foods = await translateFoodMenu(config, ['밥/잡곡밥'], { fetch: async (_url, init) => {
+    const body = JSON.parse(String(init!.body));
+    assert.deepEqual(JSON.parse(body.messages[1].content), ['밥']);
+    return Response.json({ success: true, result: { response: { foods: [{ description: 'mixed grain rice and white rice', kind: 'side' }] } } });
+  } });
+  assert.deepEqual(foods, [{ description: 'plain steamed white rice', kind: 'rice' }]);
+  const prompt = foodPrompt(GENERAL_TRAY, ['밥/잡곡밥'], '#f5f1e7', foods);
+  assert.match(prompt, /BOTTOM LEFT large well, directly on the tray, one portion only: plain steamed white rice/);
+  assert.ok(!prompt.includes('mixed grain'));
 });
