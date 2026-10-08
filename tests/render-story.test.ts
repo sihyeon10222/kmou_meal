@@ -242,7 +242,10 @@ test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 �
         const gaps = [Math.min(...rows[0]!.map(box => box.top)) - header.bottom];
         for (let index = 1; index < rows.length; index++) gaps.push(Math.min(...rows[index]!.map(box => box.top)) - Math.max(...rows[index - 1]!.map(box => box.bottom)));
         const bottomGap = 1920 - Math.max(...rows.at(-1)!.map(box => box.bottom));
-        if (Math.abs(bottomGap - 58) > 1) throw new Error(`하단 여백: ${bottomGap}`);
+        if (snack) {
+          if (Math.abs(bottomGap - 58 - gaps[0]!) > 1) throw new Error(`학식 중앙 정렬: ${bottomGap}, ${gaps[0]}`);
+          if (Math.abs(gaps[1]! - 48) > 1) throw new Error(`학식 행 간격: ${gaps[1]}`);
+        } else if (Math.abs(bottomGap - 58) > 1) throw new Error(`하단 여백: ${bottomGap}`);
         const typography = meals.map(meal => {
           const menu = meal.querySelector('.menu')!;
           const heading = meal.querySelector('.meal-heading')!;
@@ -253,13 +256,13 @@ test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 �
         const story = document.querySelector<HTMLElement>('.story')!;
         const morning = parseFloat(story.style.getPropertyValue('--morning-end'));
         const night = parseFloat(story.style.getPropertyValue('--night-start'));
-        return { left: root.left, right: root.right, gaps, typography,
+        return { left: root.left, right: root.right, gaps, typography, snack,
           firstRowAligned: !snack || Math.abs(boxes[0]!.top - boxes[1]!.top) < 1,
           morningError: rows.length === 3 ? Math.abs(morning - (boxes[0]!.bottom + boxes[1]!.top) / 2) : 0,
           nightError: rows.length === 3 ? Math.abs(night - (boxes[1]!.bottom + boxes[2]!.top) / 2) : 0 };
       });
       assert.equal(layout.left, 58); assert.equal(layout.right, 1022);
-      for (const gap of layout.gaps) { assert.ok(gap >= 47); assert.ok(Math.abs(gap - layout.gaps[0]!) <= 1); }
+      for (const gap of layout.gaps) { assert.ok(gap >= 47); if (!layout.snack) assert.ok(Math.abs(gap - layout.gaps[0]!) <= 1); }
       for (const typography of layout.typography) { assert.deepEqual(typography, layout.typography[0]); assert.equal(typography.padding, '24px'); assert.equal(typography.headingGap, '24px'); assert.ok(typography.fits); }
       assert.ok(layout.firstRowAligned && layout.morningError <= 1 && layout.nightError <= 1);
     }

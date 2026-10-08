@@ -116,7 +116,7 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
         setMenuTypography(menu, size);
         return menu.scrollWidth <= menu.clientWidth + tolerance;
       });
-      if (fitsWidth && rows.reduce((sum, height) => sum + height, 0) + 48 * rowCount <= available + tolerance) {
+      if (fitsWidth && rows.reduce((sum, height) => sum + height, 0) + 48 * (snack ? rowCount + 1 : rowCount) <= available + tolerance) {
         best = size;
         heights = measured;
         break;
@@ -124,9 +124,12 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
     }
     if (!best) throw new Error('메뉴가 이미지 영역을 초과합니다. 최소 글자 크기와 여백에서도 들어가지 않습니다.');
     const rows = rowHeights(heights);
-    const gap = (available - rows.reduce((sum, height) => sum + height, 0)) / rowCount;
-    sectionsRoot.style.top = `${headerBox.bottom + gap}px`;
-    sectionsRoot.style.bottom = `58px`;
+    // Keep the cafeteria's two rows together, centered below the header.
+    const remaining = available - rows.reduce((sum, height) => sum + height, 0);
+    const gap = snack ? 48 : remaining / rowCount;
+    const outerGap = snack ? (remaining - gap) / 2 : gap;
+    sectionsRoot.style.top = `${headerBox.bottom + outerGap}px`;
+    sectionsRoot.style.bottom = `${58 + (snack ? outerGap : 0)}px`;
     sectionsRoot.style.rowGap = `${gap}px`;
     if (snack) {
       sectionsRoot.style.setProperty('--snack-row-1', `${rows[0]}px`);
