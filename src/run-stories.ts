@@ -2,7 +2,7 @@ import { safeError } from './config.js';
 import { fetchDailyMenu } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
 import { resolveRun, type RunMode, type StoryMode } from './story-modes.js';
-import { dormitoryStory, coopStory, type StoryRenderData } from './story-data.js';
+import { dormitoryStory, coopStory, type StoryRenderData, type FoodImageResult } from './story-data.js';
 import { PublishedStoryError } from './post-story.js';
 
 export interface RunResult {
@@ -14,12 +14,14 @@ export interface RunResult {
   warning?: string;
   mediaId?: string;
   emptyMenu?: boolean;
+  aiImages?: FoodImageResult[];
   stage?: 'fetch' | 'render' | 'publish';
 }
 export interface RunDependencies {
   fetchDormitory: typeof fetchDailyMenu;
   fetchBadaro: typeof fetchDailyMenu;
   fetchCoop: typeof fetchCoopDailyMenu;
+  prepareImages?: (data: StoryRenderData) => Promise<StoryRenderData>;
   render: (data: StoryRenderData) => Promise<string>;
   publish: (data: StoryRenderData, imagePath: string) => Promise<unknown>;
 }
@@ -38,7 +40,7 @@ export async function runStories(mode: RunMode, baseDate: string, preview: boole
     }
     try {
       result.stage = 'fetch';
-      const data = request.restaurant === 'dormitory' || request.restaurant === 'badaro'
+      let data = request.restaurant === 'dormitory' || request.restaurant === 'badaro'
         ? dormitoryStory(request, await (request.restaurant === 'dormitory'
           ? deps.fetchDormitory(request.targetDate) : deps.fetchBadaro(request.targetDate)))
         : coopStory(request, await (coop ??= deps.fetchCoop(request.targetDate).catch(error => {
@@ -50,6 +52,10 @@ export async function runStories(mode: RunMode, baseDate: string, preview: boole
         console.info(`${request.targetDate} ${request.restaurant}: 정상 조회, 등록된 식단 없음 안내를 생성합니다.`);
       }
       result.stage = 'render';
+      if (deps.prepareImages) {
+        data = await deps.prepareImages(data);
+        if (data.aiImages) result.aiImages = data.aiImages;
+      }
       result.imagePath = await deps.render(data);
       if (!preview) {
         result.stage = 'publish';

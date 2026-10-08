@@ -73,6 +73,35 @@ WebStorm에서 **File → Open**으로 프로젝트를 열고 **View → Tool Wi
 
 학식 Story의 두 열은 긴 메뉴명 때문에 화면 밖으로 늘어나지 않도록 고정된 폭 안에서 글자 크기를 조절합니다. 최소 글자 크기에서도 담을 수 없는 식단은 게시 전에 실패하며, 진단용 `.failed.png`·`.failed.html`과 원본 `.menu.json`을 Artifact에 보관합니다.
 
+## AI 음식 사진 (Cloudflare Workers AI)
+
+학생생활관·승선생활관·교직원식당 Story에 끼니별 가상 식판 사진을 넣을 수 있습니다. 기본은 비활성화이며, `.env`에 아래 값을 설정하면 일반 실행과 미리보기 모두 적용됩니다. 학식과 주간 피드는 적용 대상이 아닙니다.
+
+```dotenv
+STORY_AI_ENABLED=true
+CLOUDFLARE_ACCOUNT_ID=<Cloudflare 계정 ID, 32자리>
+CLOUDFLARE_API_TOKEN=<Workers AI 실행 권한이 있는 API 토큰>
+```
+
+계정 ID는 Cloudflare 대시보드에서 확인합니다. API 토큰은 `Workers AI: Read` 권한이 필요합니다. 자동 게시에는 동일한 세 이름의 GitHub Actions Secrets를 설정하세요. 기존 `npm run secrets:sync`도 이 세 설정을 함께 등록합니다. 이 명령은 기존 게시 인증 설정 역시 필요합니다.
+
+```bash
+# 음식 사진을 포함한 미리보기. Instagram에 게시하지 않지만 Cloudflare 호출 비용은 발생할 수 있습니다.
+npm run preview -- --restaurant dormitory --date 2026-10-08
+```
+
+모델은 `@cf/black-forest-labs/flux-2-klein-4b`입니다([Cloudflare 입력 형식 문서](https://developers.cloudflare.com/changelog/post/2026-01-15-flux-2-klein-4b-workers-ai/)). 매번 식판 전체 형태를 새로 만드는 대신, 고정된 노란 식판 참고 이미지에 메뉴를 배치하도록 요청하고 결과의 칸 내부만 합성합니다. 테두리·칸막이·투명 외곽·빈 수저 칸은 유지합니다. 음식 모습과 양은 실제 제공 사진이 아닌 AI의 예상 표현이며, 스토리에 별도 안내 문구는 넣지 않습니다.
+
+학생생활관 아침은 항상 원형식판입니다. 점심·저녁은 메뉴에 `돈가스`, `돈까스`, `커틀릿`, `파스타`, `스파게티`가 있으면 원형, 나머지는 일반식판입니다. 승선생활관·교직원식당은 우선 모든 끼니에 일반식판을 사용합니다. `src/tray-profiles.ts`의 `RESTAURANT_TRAYS`에서 식당별 설정을 분리하고 있습니다. 전용 식판을 추가할 때는 새 프로필에 프롬프트, 칸 좌표(`slots`), 음식별 칸 배정(`foodSlots`)을 함께 정의하고 `version`을 올리세요. 칸 좌표는 가로 1000 기준이며 프로필의 `height`로 비율을 정합니다. `ROUND_MENU_PATTERN`에서 원형식판 메뉴 판별을 조정합니다.
+
+사진은 메뉴 오른쪽에 220~420px 너비로 배치합니다. 긴 메뉴는 줄바꿈하며, 모든 끼니에 공통으로 적용할 수 있는 가장 큰 글자 크기(72~28px)를 먼저 선택한 다음 사진 크기를 정합니다. 사진과 텍스트를 모두 최소 크기로 줄여도 들어가지 않는 식단은 게시 전 렌더링 실패로 처리합니다.
+
+빈 식단·휴무 안내는 생성하지 않습니다. `우유or두유` 같은 선택 메뉴는 첫 선택지로 표현하고, `밥/김치`처럼 함께 제공되는 항목은 나누어 배치합니다. 스토리에 표시하는 메뉴 원문은 바꾸지 않습니다. 음식별 배치 규칙은 `src/food-images.ts`에서 관리합니다.
+
+요청당 90초 제한, 최대 동시 2개로 실행합니다. 통신 오류·429·5xx는 한 번 재시도하고 인증 오류는 재시도하지 않습니다. 설정 누락이나 생성·합성 실패가 발생하면 해당 끼니의 음식 사진만 제외하고 기존 식단을 게시합니다. `.run.json`과 Actions Summary의 `aiImages`에는 `generated`·`cached`·`skipped`·`failed` 상태를 남깁니다. AI 사진 실패만으로 CLI를 실패 종료하거나 정상 게시를 재실행하지 않습니다.
+
+합성 PNG는 `output/food-cache/`에 저장하고 Actions 실행 사이에도 캐시를 복원합니다. 식당·날짜·끼니·메뉴·식판 설정·모델·프롬프트가 같으면 전체/단일 끼니 미리보기와 실제 게시에서 재사용합니다. 해당 파일을 지우면 다시 생성합니다. 원본 메뉴 JSON에는 큰 이미지 데이터 대신 크기와 캐시 파일 경로를 남기고, 렌더링 HTML에는 이미지를 포함합니다. Actions Artifact에도 합성 PNG를 보관합니다.
+
 ## 자동화: 예약은 두 개
 
 | 시간 (Asia/Seoul) | Workflow | 순서 |

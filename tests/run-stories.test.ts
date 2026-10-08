@@ -3,6 +3,24 @@ import { test } from 'node:test';
 import { runStories, type RunDependencies } from '../src/run-stories.js';
 import { emptyCoop } from './fixtures.js';
 import { PublishedStoryError } from '../src/post-story.js';
+import { createFoodImagePreparer } from '../src/food-images.js';
+
+test('AI 실패 끼니는 텍스트로 게시하며 게시 성공·종료 조건을 유지한다', async () => {
+  let renders = 0, publishes = 0;
+  const results = await runStories('today_badaro_full', '2026-10-08', false, {
+    fetchDormitory: async () => assert.fail('다른 식당 조회 금지'),
+    fetchCoop: async () => assert.fail('다른 식당 조회 금지'),
+    fetchBadaro: async () => ({ date: '2026/10/08', breakfast: [], lunch: ['불고기'], dinner: [] }),
+    prepareImages: createFoodImagePreparer({ env: { STORY_AI_ENABLED: 'true' } }),
+    render: async data => { renders++; assert.equal(data.sections[1]!.items[0], '불고기'); assert.ok(!data.sections[1]!.image); return 'text.jpg'; },
+    publish: async () => { publishes++; return { mediaId: 'successful-post' }; },
+  });
+  assert.equal(renders, 1); assert.equal(publishes, 1);
+  assert.equal(results[0]!.status, 'published');
+  assert.equal(results[0]!.warning, undefined);
+  assert.equal(results[0]!.aiImages?.[1]?.status, 'failed');
+  assert.equal(results[0]!.mediaId, 'successful-post');
+});
 
 test('승선생활관은 주말에도 전용 API의 세 끼를 렌더하고 게시한다', async () => {
   const fail = async (): Promise<never> => assert.fail('다른 식당 조회 금지');

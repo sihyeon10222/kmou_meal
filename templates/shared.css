@@ -15,6 +15,11 @@ h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px;
 .moon { border-radius: 50%; box-shadow: inset 14px -9px 0 0 var(--moon); transform: rotate(-15deg); }
 .menu { flex: none; min-height: 0; padding-top: 24px; padding-bottom: 12px; display: flex; flex-direction: column; gap: 16px; font-size: 72px; font-weight: 560; line-height: 1.2; letter-spacing: -1px; }
 .dish { margin: 0; flex-shrink: 0; overflow-wrap: normal; word-break: keep-all; }
+.meal-body { min-height: 0; }
+.with-food .meal-body { display: grid; grid-template-columns: minmax(0, 1fr) var(--food-width, 420px); column-gap: 24px; align-items: center; }
+.with-food .menu { min-width: 0; overflow-wrap: anywhere; }
+.with-food .dish { overflow-wrap: anywhere; }
+.food-photo { display: block; width: var(--food-width, 420px); height: auto; }
 .empty { opacity: .75; font-weight: 450 !important; }
 .night { position: absolute; inset: var(--night-start, 1038px) 0 0; background: var(--blue); }
 .dinner .meal-heading { border-color: #f5f1e738; }
