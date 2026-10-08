@@ -8,7 +8,7 @@ import { selectTray, shouldGenerateFoodImage, type TrayProfile } from './tray-pr
 
 export const FOOD_MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
 export const MENU_TRANSLATION_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-const PROMPT_VERSION = 7;
+const PROMPT_VERSION = 8;
 export interface FoodConfig { accountId: string; token: string }
 export function loadFoodConfig(env: NodeJS.ProcessEnv = process.env): FoodConfig | undefined {
   if (env.STORY_AI_ENABLED !== 'true') return undefined;
@@ -35,10 +35,10 @@ export function foodPrompt(profile: TrayProfile, items: string[], background = '
     return `- ${hint ? `${item} (${hint})` : item}`;
   });
   // Put the meal before tray geometry so long shape descriptions cannot crowd it out.
-  return `Photograph this exact Korean cafeteria meal, all food served DIRECTLY inside the tray's molded recessed compartments:
+  return `Photograph this exact Korean cafeteria meal. Rice and side dishes are served DIRECTLY inside the tray's molded recessed compartments; ONLY SOUP is served in one pale-green round soup bowl on the tray:
 ${foods.join('\n')}
 Serving positions: ${profile.servingLayout}
-Generate the entire tray, all food, lighting and shadows together as ONE realistic photograph. Rice, soup and side dishes touch the yellow plastic of their own tray wells directly. Pour soup directly into one deep tray well. NO bowls, plates, cups, ramekins, paper liners or any separate food containers on the tray. Natural portions and appetizing textures. Rice separate from main dishes, side dishes separate. Include every listed food once; leave unused wells empty. No extra food, utensils, lettering or props.
+Generate the entire tray, all food, the soup bowl, lighting and shadows together as ONE realistic photograph. Rice and side dishes touch the yellow plastic directly. If soup is listed, put it in exactly ONE pale-green round bowl at the specified soup position. Never pour soup directly into the plastic tray. No plates, rice bowls, side-dish bowls, ramekins, paper liners or extra containers. Natural portions and appetizing textures. Rice separate from main dishes, side dishes separate. Include every listed food once; leave unused wells empty. No extra food, utensils, lettering or props.
 Perfect 90-degree overhead view, horizontal tray, no rotation. Entire tray visible with a small even margin, soft studio lighting. Plain matte background ${background}. Normal complete photograph, no transparency checkerboard, no collage.
 Tray shape:
 ${profile.prompt}`;

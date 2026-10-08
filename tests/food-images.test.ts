@@ -44,11 +44,11 @@ test('메뉴와 식판 형태를 전달하고 음식별 좌표나 참고 이미�
   assert.ok(prompt.indexOf('- 쌀밥') < prompt.indexOf('Tray shape:'));
   assert.match(prompt, /Generate the entire tray, all food/);
   assert.match(prompt, /DIRECTLY inside the tray's molded recessed compartments/);
-  assert.match(prompt, /Pour soup directly into one deep tray well/);
-  assert.match(prompt, /NO bowls, plates, cups/);
-  assert.ok(!prompt.includes('soup in a bowl'));
+  assert.match(prompt, /ONLY SOUP is served in one pale-green round soup bowl/);
+  assert.match(prompt, /No plates, rice bowls, side-dish bowls/);
+  assert.match(prompt, /Never pour soup directly into the plastic tray/);
   assert.match(prompt, /rice ONLY in the large BOTTOM-LEFT compartment/);
-  assert.match(prompt, /soup ONLY in the large BOTTOM-RIGHT compartment/);
+  assert.match(prompt, /soup ONLY in ONE pale-green round soup bowl placed inside the large BOTTOM-RIGHT compartment/);
   assert.match(prompt, /kimchi in the TOP-RIGHT rectangular well/);
   assert.match(foodPrompt(ROUND_TRAY, ['돈가스']), /LEFT circular compartment/);
   assert.match(prompt, /exactly 8 recessed compartments/);
