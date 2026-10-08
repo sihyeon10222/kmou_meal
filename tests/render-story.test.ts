@@ -11,7 +11,7 @@ import { STORY_MODES, resolveStoryRequest } from '../src/story-modes.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
 import type { CoopDailyMenu } from '../src/fetch-coop-menu.js';
 import sharp from 'sharp';
-import { GENERAL_TRAY, ROUND_TRAY, traySvg } from '../src/tray-profiles.js';
+import { GENERAL_TRAY, ROUND_TRAY, shouldGenerateFoodImage } from '../src/tray-profiles.js';
 
 test('메뉴 HTML escape, 공통 헤더, 부분 empty 영역 유지', async () => {
   const data = dormitoryStory(resolveStoryRequest('today_dormitory_full', '2026-09-18'), {
@@ -33,7 +33,7 @@ test('음식 사진은 세 식당 전체·단일 끼니와 긴 메뉴에서 겹�
   const renderer = createStoryRenderer();
   const browser = await chromium.launch({ headless: true });
   const images = await Promise.all([GENERAL_TRAY, ROUND_TRAY].map(async profile => ({
-    dataUrl: `data:image/png;base64,${(await sharp(traySvg(profile)).png().toBuffer()).toString('base64')}`,
+    dataUrl: `data:image/png;base64,${(await sharp({ create: { width: 1000, height: profile.height, channels: 3, background: '#e8cd46' } }).png().toBuffer()).toString('base64')}`,
     width: 1000, height: profile.height,
   })));
   try {
@@ -65,6 +65,8 @@ test('음식 사진은 세 식당 전체·단일 끼니와 긴 메뉴에서 겹�
             visible: !photo || getComputedStyle(photo).display !== 'none' };
         });
       });
+      assert.equal(load(html)('.breakfast .food-photo').length,
+        shouldGenerateFoodImage(data.request.restaurant, 'breakfast') && data.sections.some(section => section.key === 'breakfast') ? 1 : 0);
       for (const entry of layout) {
         assert.ok(entry.fits && entry.inMeal && entry.visible);
         assert.equal(entry.font, layout[0]!.font);

@@ -4,8 +4,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { createFoodImagePreparer, foodItems, foodPrompt, generateFood, loadFoodConfig, planFood } from '../src/food-images.js';
-import { compositeTray, GENERAL_TRAY, ROUND_TRAY, selectTray, trayReference, traySvg } from '../src/tray-profiles.js';
+import { createFoodImagePreparer, foodItems, foodPrompt, generateFood, loadFoodConfig, foodBackground, translateFoodMenu, MENU_TRANSLATION_MODEL } from '../src/food-images.js';
+import { GENERAL_TRAY, ROUND_TRAY, selectTray, shouldGenerateFoodImage } from '../src/tray-profiles.js';
 import { dormitoryStory } from '../src/story-data.js';
 import { resolveStoryRequest } from '../src/story-modes.js';
 import { safeError } from '../src/config.js';
@@ -16,6 +16,11 @@ const config = { accountId: 'a'.repeat(32), token: 'private-cloudflare-token' };
 const env = { STORY_AI_ENABLED: 'true', CLOUDFLARE_ACCOUNT_ID: config.accountId, CLOUDFLARE_API_TOKEN: config.token };
 const generated = await sharp({ create: { width: 1000, height: 712, channels: 3, background: '#a8592e' } }).png().toBuffer();
 const ok = () => Response.json({ success: true, result: { image: generated.toString('base64') } });
+const translated = (init: RequestInit | undefined) => {
+  const body = JSON.parse(String(init!.body));
+  const foods = JSON.parse(body.messages[1].content) as string[];
+  return Response.json({ success: true, result: { response: JSON.stringify({ foods: foods.map((item, index) => item === '불고기' ? 'bulgogi' : `translated dish ${index}`) }) } });
+};
 
 test('식당별 식판 선택과 기본 비활성화/인증 설정', () => {
   assert.equal(loadFoodConfig({}), undefined);
@@ -30,43 +35,22 @@ test('식당별 식판 선택과 기본 비활성화/인증 설정', () => {
   assert.equal(safeError(new Error(`failed ${config.token}`), env), 'failed [REDACTED]');
 });
 
-test('메뉴 안내 제외, 선택 메뉴, 밥/김치, 고정 칸 배치', () => {
+test('메뉴와 식판 형태를 전달하고 음식별 좌표나 참고 이미지를 강제하지 않는다', () => {
   assert.deepEqual(foodItems(['*대체공휴일 미운영', '조식 미운영', '휴무', '등록된 식단 없음']), []);
   assert.deepEqual(foodItems(['우유or두유/시리얼', '밥/김치', '토스트&잼']), ['우유', '시리얼', '밥', '김치', '토스트&잼']);
   const items = ['쌀밥', '된장찌개', '불고기', '김치', '사과'];
-  const plan = planFood(GENERAL_TRAY, items);
-  assert.deepEqual(plan.flatMap(entry => entry.items).sort(), [...items].sort());
-  assert.deepEqual(plan.find(entry => entry.slot === 'bottom-left')?.items, ['쌀밥', '불고기']);
-  assert.deepEqual(plan.find(entry => entry.slot === 'bottom-right')?.items, ['된장찌개']);
-  assert.ok(!plan.some(entry => entry.slot === 'utensils'));
-  assert.match(foodPrompt(ROUND_TRAY, ['돈가스']), /main .*돈가스/);
-  const lunch = planFood(GENERAL_TRAY, ['들깨미역국', '닭갈비', '단호박콘치즈찜', '밥/김치']);
-  assert.deepEqual(lunch.find(entry => entry.slot === 'bottom-left')?.items, ['닭갈비', '밥']);
-  assert.ok(lunch.find(entry => entry.slot === 'upper-left')?.items.includes('단호박콘치즈찜'));
-  const breakfast = planFood(ROUND_TRAY, ['우유or두유/시리얼', '토스트', '사과']);
-  assert.deepEqual(breakfast.find(entry => entry.slot === 'lower-right')?.items, ['우유', '시리얼']);
-  assert.deepEqual(breakfast.find(entry => entry.slot === 'middle-right')?.items, ['사과']);
-  const staffLunch = planFood(GENERAL_TRAY, ['백미밥/흑미밥', '매콤돈낙새볶음', '순대튀김', '모듬어묵국']);
-  assert.deepEqual(staffLunch.find(entry => entry.slot === 'bottom-left')?.items, ['백미밥', '흑미밥', '매콤돈낙새볶음', '순대튀김']);
-  assert.deepEqual(planFood(GENERAL_TRAY, ['후리가케밥', '잔치국수']).find(entry => entry.slot === 'bottom-left')?.items, ['후리가케밥', '잔치국수']);
-  assert.deepEqual(planFood(ROUND_TRAY, ['토마토스파게티', '마늘빵', '그린샐러드', '오이피클']).find(entry => entry.slot === 'main')?.items, ['토마토스파게티']);
+  const prompt = foodPrompt(GENERAL_TRAY, items, '#2259b1');
+  for (const item of items) assert.ok(prompt.includes(`- ${item}`));
+  assert.ok(prompt.indexOf('- 쌀밥') < prompt.indexOf('Tray shape:'));
+  assert.match(prompt, /Generate the entire tray, all food/);
+  assert.match(prompt, /exactly 8 recessed compartments/);
+  assert.match(foodPrompt(ROUND_TRAY, ['토마토스파게티']), /exactly 5 recessed compartments/);
   assert.match(foodPrompt(ROUND_TRAY, ['돈가스']), /golden breadcrumb crust/);
-});
-
-test('참고 이미지 크기와 합성의 투명 외곽·칸막이·수저 칸 보존', async () => {
-  for (const profile of [GENERAL_TRAY, ROUND_TRAY]) {
-    const reference = await sharp(await trayReference(profile)).metadata();
-    assert.ok(reference.width! < 512 && reference.height! < 512);
-    const occupied = profile.slots.filter(slot => !slot.utensil).map(slot => slot.id);
-    const image = await compositeTray(profile, generated, occupied);
-    const original = await sharp(traySvg(profile)).ensureAlpha().raw().toBuffer();
-    const { data, info } = await sharp(image).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const pixel = (buffer: Buffer, x: number, y: number) => [...buffer.subarray((y * info.width + x) * 4, (y * info.width + x) * 4 + 4)];
-    assert.equal(pixel(data, 0, 0)[3], 0);
-    for (const [x, y] of [[500, 12], [900, 200]]) assert.deepEqual(pixel(data, x!, y!), pixel(original, x!, y!));
-    const slot = profile.slots[0]!;
-    assert.notDeepEqual(pixel(data, slot.x + slot.width / 2, slot.y + slot.height / 2), pixel(original, slot.x + slot.width / 2, slot.y + slot.height / 2));
-  }
+  assert.match(prompt, /#2259b1/);
+  assert.ok(!prompt.includes('image 0') && !prompt.includes('center ') && !prompt.includes('assigned compartment'));
+  assert.equal(foodBackground('full', 'breakfast'), '#ffffff');
+  assert.equal(foodBackground('full', 'dinner'), '#2259b1');
+  assert.equal(foodBackground('lunch', 'lunch'), '#f5f1e7');
 });
 
 test('Cloudflare multipart 입력과 정상 응답', async () => {
@@ -77,7 +61,7 @@ test('Cloudflare multipart 입력과 정상 응답', async () => {
     assert.equal((init!.headers as Record<string, string>).Authorization, `Bearer ${config.token}`);
     assert.ok(!('Content-Type' in (init!.headers as Record<string, string>)));
     const form = init!.body as FormData;
-    assert.ok(form.get('input_image_0') instanceof Blob);
+    assert.ok(![...form.keys()].some(key => key.startsWith('input_image')));
     assert.equal(form.get('width'), '1024');
     assert.match(String(form.get('prompt')), /불고기/);
     return ok();
@@ -128,12 +112,13 @@ test('실제 요청 제한 시간이 멈춘 소켓을 중단하고 한 번만 �
 test('캐시 재사용·메뉴 변경·손상 복구와 두 요청 동시 제한', async () => {
   const cacheDir = await mkdtemp(join(tmpdir(), 'kmou-food-'));
   let calls = 0, active = 0, peak = 0;
-  const prepare = createFoodImagePreparer({ env, cacheDir, client: { fetch: async () => {
+  const prepare = createFoodImagePreparer({ env, cacheDir, client: { fetch: async (url, init) => {
+    if (String(url).endsWith(MENU_TRANSLATION_MODEL)) return translated(init);
     calls++; active++; peak = Math.max(peak, active);
     await new Promise(resolve => setTimeout(resolve, 10)); active--; return ok();
   } } });
   try {
-    const data = dormitoryStory(resolveStoryRequest('today_dormitory_full', '2026-10-08'), {
+    const data = dormitoryStory(resolveStoryRequest('today_badaro_full', '2026-10-08'), {
       date: '2026/10/08', breakfast: ['우유', '토스트'], lunch: ['불고기', '밥'], dinner: ['된장찌개', '밥'],
     });
     const first = await prepare(data);
@@ -141,12 +126,15 @@ test('캐시 재사용·메뉴 변경·손상 복구와 두 요청 동시 제한
     assert.ok(first.sections.every(section => section.image));
     assert.ok(data.sections.every(section => !section.image));
     assert.ok(first.aiImages?.every(image => image.status === 'generated'));
-    const second = await prepare({ ...data, request: resolveStoryRequest('today_dormitory_lunch', '2026-10-08'), sections: [data.sections[1]!] });
+    const second = await prepare({ ...data, request: resolveStoryRequest('today_badaro_lunch', '2026-10-08'), sections: [data.sections[1]!] });
     assert.equal(second.aiImages?.[0]?.status, 'cached'); assert.equal(calls, 3);
     await writeFile(first.aiImages![1]!.imagePath!, 'broken');
     await prepare(data); assert.equal(calls, 4);
     data.sections[1]!.items.push('김치'); await prepare(data); assert.equal(calls, 5);
-    const png = await readFile(first.aiImages![0]!.imagePath!); assert.ok((await sharp(png).metadata()).hasAlpha);
+    const png = await readFile(first.aiImages![0]!.imagePath!);
+    assert.deepEqual(await sharp(png).raw().toBuffer(), await sharp(generated).raw().toBuffer(), '생성 이미지의 모든 픽셀을 보존해야 합니다.');
+    assert.equal(first.sections[0]!.image!.width, 1000);
+    assert.equal(first.sections[0]!.image!.height, 712);
   } finally { await rm(cacheDir, { recursive: true, force: true }); }
 });
 
@@ -165,12 +153,54 @@ test('학식·비활성화·빈 끼니 호출 제외, 일부 오류는 해당 �
     assert.ok(prepared.sections.every(section => !section.image));
     const missing = await createFoodImagePreparer({ env: { STORY_AI_ENABLED: 'true' }, cacheDir })(data);
     assert.equal(missing.aiImages?.[1]?.status, 'failed');
-    const mixedData = { ...data, sections: data.sections.map(section => section.key === 'breakfast' ? { ...section, items: ['토스트'] } : section) };
-    const mixed = await createFoodImagePreparer({ env, cacheDir, client: { fetch: async (_url, init) =>
-      String((init!.body as FormData).get('prompt')).includes('불고기') ? new Response('', { status: 403 }) : ok(),
+    const mixedData = { ...data, request: resolveStoryRequest('today_badaro_full', '2026-10-08'), sections: data.sections.map(section => section.key === 'breakfast' ? { ...section, items: ['토스트'] } : section) };
+    const mixed = await createFoodImagePreparer({ env, cacheDir, client: { fetch: async (url, init) =>
+      String(url).endsWith(MENU_TRANSLATION_MODEL) ? translated(init) : String((init!.body as FormData).get('prompt')).includes('bulgogi') ? new Response('', { status: 403 }) : ok(),
     } })(mixedData);
     assert.deepEqual(mixed.aiImages?.map(image => image.status), ['generated', 'failed', 'skipped']);
     assert.ok(mixed.sections[0]!.image);
     assert.ok(!mixed.sections[1]!.image);
   } finally { await rm(cacheDir, { recursive: true, force: true }); }
+});
+
+test('승선생활관만 아침 생성: 다른 식당은 캐시 조회·API 호출·사진 표시를 모두 제외한다', async () => {
+  const cacheDir = await mkdtemp(join(tmpdir(), 'kmou-breakfast-policy-'));
+  try {
+    let calls = 0;
+    const prepare = createFoodImagePreparer({ env, cacheDir, client: { fetch: async (url, init) => { calls++; return String(url).endsWith(MENU_TRANSLATION_MODEL) ? translated(init) : ok(); } } });
+    for (const restaurant of ['dormitory', 'teacher', 'badaro'] as const) {
+      assert.equal(shouldGenerateFoodImage(restaurant, 'breakfast'), restaurant === 'badaro');
+      const request = resolveStoryRequest(`today_${restaurant}_breakfast`, '2026-10-08');
+      const data = dormitoryStory(request, { date: request.targetDate, breakfast: ['밥', '국'], lunch: [], dinner: [] });
+      // Legacy images must be removed even when the caller provides them.
+      data.sections[0]!.image = { dataUrl: `data:image/png;base64,${generated.toString('base64')}`, width: 1000, height: 712 };
+      const prepared = await prepare(data);
+      assert.equal(prepared.aiImages![0]!.status, restaurant === 'badaro' ? 'generated' : 'skipped');
+      assert.equal(Boolean(prepared.sections[0]!.image), restaurant === 'badaro');
+      for (const meal of ['lunch', 'dinner']) assert.ok(shouldGenerateFoodImage(restaurant, meal));
+    }
+    assert.equal(calls, 2);
+    assert.equal(shouldGenerateFoodImage('snack', 'breakfast'), false);
+  } finally { await rm(cacheDir, { recursive: true, force: true }); }
+});
+
+test('영어 메뉴 번역은 원문별 항목 수를 보존하고 이미지 프롬프트에 사용한다', async () => {
+  const english = ['steamed rice', 'Korean bulgogi beef', 'kimchi'];
+  const foods = await translateFoodMenu(config, ['밥', '불고기', '김치'], { fetch: async (url, init) => {
+    assert.ok(String(url).endsWith(MENU_TRANSLATION_MODEL));
+    const body = JSON.parse(String(init!.body));
+    assert.equal(body.temperature, 0);
+    assert.deepEqual(JSON.parse(body.messages[1].content), ['밥', '불고기', '김치']);
+    return Response.json({ success: true, result: { response: JSON.stringify({ foods: english }) } });
+  } });
+  assert.deepEqual(foods, english);
+  await generateFood(config, GENERAL_TRAY, ['밥', '불고기', '김치'], { englishFoods: foods, fetch: async (_url, init) => {
+    const prompt = String((init!.body as FormData).get('prompt'));
+    assert.ok(english.every(item => prompt.includes(`- ${item}`)));
+    assert.ok(!prompt.includes('- 불고기'));
+    return ok();
+  } });
+  for (const response of [null, { foods: ['missing'] }, { foods: ['', 'beef', 'kimchi'] }, { foods: ['밥', 'beef', 'kimchi'] }]) {
+    await assert.rejects(translateFoodMenu(config, ['밥', '불고기', '김치'], { fetch: async () => Response.json({ success: true, result: { response } }) }));
+  }
 });

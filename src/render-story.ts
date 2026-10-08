@@ -6,6 +6,7 @@ import { shortDate, weekdayName } from './weekly-data.js';
 import { chromium, type Browser, type Page } from 'playwright';
 import type { MenuSection, StoryRenderData } from './story-data.js';
 import type { Restaurant } from './story-modes.js';
+import { shouldGenerateFoodImage } from './tray-profiles.js';
 
 const STORY_SIZE = { width: 1080, height: 1920 };
 const JPEG_QUALITY = 94;
@@ -59,7 +60,8 @@ function buildStoryHtml(data: StoryRenderData, assets: TemplateAssets, layout: s
     CLASSES: `${request.restaurant === 'badaro' ? 'badaro dormitory' : request.restaurant} ${request.scope}`,
     DATE: escapeHtml(`${shortDate(request.targetDate)}(${weekdayName(request.targetDate)})`),
     TITLE: { dormitory: '기숙사', badaro: '승선생활관', snack: '학식', teacher: '교직원식당' }[request.restaurant],
-    SECTIONS: sections.map(sectionHtml).join(''),
+    SECTIONS: sections.map(section => sectionHtml(shouldGenerateFoodImage(request.restaurant, section.key)
+      ? section : { key: section.key, label: section.label, items: section.items })).join(''),
   };
   return assets.template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => replacements[key] ?? '');
 }

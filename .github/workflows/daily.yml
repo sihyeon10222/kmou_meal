@@ -43,9 +43,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: output/food-cache
-          key: food-images-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: food-images-whole-tray-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            food-images-v1-${{ runner.os }}-
+            food-images-whole-tray-v2-${{ runner.os }}-
       - name: Render or publish Stories
         shell: bash
         env:
@@ -74,7 +74,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: output/food-cache
-          key: food-images-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: food-images-whole-tray-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Save images and receipts
         if: always()
         uses: actions/upload-artifact@v7
