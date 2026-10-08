@@ -61,7 +61,7 @@ export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPag
   const tag = onlyCombinedPage === 'snack' ? '해양대학식'
     : onlyCombinedPage === 'teacher' ? '해양대교직원식당'
     : { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
-  const update = updatedOn ? `${shortDate(updatedOn)} ${weekdayName(updatedOn)}요일에 학교 측의 식단 업데이트로 인해 다시 올라온 게시물입니다.\n\n` : '';
+  const update = updatedOn ? `${shortDate(updatedOn)} (${weekdayName(updatedOn)})에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다.\n\n` : '';
   return `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.\n\n${update}학교 측의 식단 업데이트가 늦을 경우, 식단표에 '등록된 식단 없음'으로 표시될 수 있습니다.\n\n#해양대학교 #${tag}`;
 }
 export function createWeeklyFetcher(deps = {

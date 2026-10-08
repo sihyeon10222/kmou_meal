@@ -124,7 +124,7 @@ test('compact ranges and update notices fit within the first panorama image', as
   const data = await fetcher('dormitory', range);
   const html = await weeklyHtml(data.pages[0]!, '2026-09-23');
   assert.match(html, /9\/21 ~ 9\/27/);
-  assert.match(html, /9\/23\(수\)에 식단표 변경됨/);
+  assert.match(html, /9\/23 \(수\)에 식단표 변경됨/);
   assert.doesNotMatch(await weeklyHtml(data.pages[0]!), /식단표 변경됨/);
   const browser = await chromium.launch({ headless: true });
   try {
@@ -137,8 +137,11 @@ test('compact ranges and update notices fit within the first panorama image', as
         const r = document.querySelector(selector)!.getBoundingClientRect();
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
       };
-      return { notice: rect('.update-notice'), calendar: rect('.calendar'), range: rect('.range'), title: rect('h1') };
+      const noticeStyle = getComputedStyle(document.querySelector('.update-notice')!);
+      return { noticeFont: noticeStyle.fontSize, noticeColor: noticeStyle.color, notice: rect('.update-notice'), calendar: rect('.calendar'), range: rect('.range'), title: rect('h1') };
     });
+    assert.equal(boxes.noticeFont, '28px');
+    assert.equal(boxes.noticeColor, 'rgb(211, 47, 47)');
     assert.ok(boxes.notice.right < 1080 && boxes.notice.left >= 0);
     assert.ok(boxes.notice.top >= boxes.title.bottom);
     assert.equal(boxes.notice.left, boxes.title.left);
