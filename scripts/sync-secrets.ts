@@ -6,7 +6,7 @@ try {
   const repo = process.argv[2] ?? 'sihyeon10222/kmou_meal';
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('저장소 형식: owner/repo');
   loadConfig();
-  for (const name of ['IG_ACCESS_TOKEN', 'IG_USER_ID', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY', 'SUPABASE_BUCKET', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'STORY_AI_ENABLED']) {
+  for (const name of ['IG_ACCESS_TOKEN', 'IG_USER_ID', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY', 'SUPABASE_BUCKET']) {
     const value = process.env[name]?.trim();
     if (!value) continue;
     const result = spawnSync('gh', ['secret', 'set', name, '--repo', repo], { input: value, encoding: 'utf8' });

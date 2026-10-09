@@ -8,7 +8,6 @@ import { createPublishingServices } from './publishing-services.js';
 import type { StoryOptions } from './cli-options.js';
 import { postStory } from './post-story.js';
 import { storySummary } from './story-summary.js';
-import { createFoodImagePreparer } from './food-images.js';
 
 export async function executeStories({ mode, baseDate, preview }: StoryOptions) {
   await mkdir('output', { recursive: true });
@@ -19,7 +18,6 @@ export async function executeStories({ mode, baseDate, preview }: StoryOptions) 
     fetchDormitory: fetchDailyMenu,
     fetchBadaro: fetchBadaroMenu,
     fetchCoop: fetchCoopDailyMenu,
-    prepareImages: createFoodImagePreparer(),
     render: async data => {
       const image = await renderer.render(data);
       console.log(`Story 이미지: ${image}`);

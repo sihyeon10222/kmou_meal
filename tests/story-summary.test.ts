@@ -13,12 +13,3 @@ test('Actions Summary는 정상 빈 식단, 실패 단계, 게시 성공 후 경
   assert.match(summary, /published \(경고\)/);
   assert.match(summary, /실패한 식당만/);
 });
-
-test('AI 음식 사진 오류는 게시 경고 대신 끼니별 별도 상세로 남는다', () => {
-  const summary = storySummary([{ mode: 'today_dormitory_full', targetDate: '2026-10-08', status: 'published', mediaId: 'm1',
-    aiImages: [{ meal: 'breakfast', status: 'cached' }, { meal: 'lunch', status: 'generated' },
-      { meal: 'dinner', status: 'failed', error: 'HTTP 401' }],
-  }]);
-  assert.match(summary, /breakfast=cached, lunch=generated, dinner=failed \(HTTP 401\)/);
-  assert.ok(!summary.includes('published (경고)'));
-});

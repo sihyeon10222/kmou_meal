@@ -347,7 +347,7 @@ test('Wednesday weekend addition replaces, freezes elapsed days and refreshes fu
   assert.equal(prepared.updatedOn, '2026-09-23');
   assert.ok(prepared.pages[0]!.days.slice(0, 3).every(day => day.sections[0]!.items[0] === '기존 메뉴'));
   assert.ok(prepared.pages[0]!.days.slice(3).every(day => day.sections[0]!.items[0] === '새 메뉴'));
-  assert.match(prepared.caption, /9\/23 \(수\)에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다\.\n\n학교 측/);
+  assert.match(prepared.caption, /9\/23 수요일에 학교 측의 식단 업데이트로 인해 다시 올라온 게시물입니다\.\n\n학교 측/);
   assert.equal(hasFutureAddition(next, prepared.pages, '2026-09-23'), false);
 });
 test('Friday additions through Friday are ignored, but through Sunday warrant a post', () => {
@@ -404,7 +404,7 @@ test('force replacement renders the update notice even for a legacy record', asy
   deps.published = async () => oldRecord('combined');
   deps.render = async value => {
     assert.equal(value.updatedOn, today);
-    assert.match(value.caption, /재업로드된 식단표/);
+    assert.match(value.caption, /다시 올라온 게시물/);
     return { images: ['a', 'b'] };
   };
   assert.equal((await runWeeklyAt(range, 'combined', false, true, deps))[0]!.status, 'published');

@@ -11,7 +11,6 @@
     "story": "tsx src/cli.ts story",
     "feed": "tsx src/cli.ts feed",
     "preview": "tsx src/cli.ts story --preview",
-    "verify-food-images": "tsx scripts/verify-food-images.ts",
     "check-setup": "tsx src/check-setup.ts",
     "secrets:sync": "tsx scripts/sync-secrets.ts",
     "build": "tsc",

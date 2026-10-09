@@ -10,8 +10,6 @@ import { coopStory, dormitoryStory } from '../src/story-data.js';
 import { STORY_MODES, resolveStoryRequest } from '../src/story-modes.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
 import type { CoopDailyMenu } from '../src/fetch-coop-menu.js';
-import sharp from 'sharp';
-import { GENERAL_TRAY, ROUND_TRAY, shouldGenerateFoodImage } from '../src/tray-profiles.js';
 
 test('메뉴 HTML escape, 공통 헤더, 부분 empty 영역 유지', async () => {
   const data = dormitoryStory(resolveStoryRequest('today_dormitory_full', '2026-09-18'), {
@@ -26,68 +24,6 @@ test('메뉴 HTML escape, 공통 헤더, 부분 empty 영역 유지', async () =
   assert.equal($('.date').text(), '9/18(금)');
   assert.equal($('footer').length, 0);
   assert.equal($('.eyebrow').length, 0);
-});
-
-test('음식 사진은 세 식당 전체·단일 끼니와 긴 메뉴에서 겹침 없이 표시된다', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'kmou-food-layout-'));
-  const renderer = createStoryRenderer();
-  const browser = await chromium.launch({ headless: true });
-  const images = await Promise.all([GENERAL_TRAY, ROUND_TRAY].map(async profile => ({
-    dataUrl: `data:image/png;base64,${(await sharp({ create: { width: 1000, height: profile.height, channels: 3, background: '#e8cd46' } }).png().toBuffer()).toString('base64')}`,
-    width: 1000, height: profile.height,
-  })));
-  try {
-    const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
-    const widths: number[] = [];
-    for (const mode of ['today_dormitory_full', 'today_badaro_full', 'today_teacher_full', 'today_dormitory_breakfast', 'today_teacher_lunch', 'today_badaro_dinner'] as const) {
-      const data = dormitoryStory(resolveStoryRequest(mode, '2026-10-08'), {
-        date: '2026/10/08', breakfast: ['우유or두유/시리얼', '셀프토스트&버터/딸기잼', '계란후라이', '샐러드', '사과'],
-        lunch: ['잡곡밥', '흑임자브로콜리땅콩샐러드&드레싱', '돈육메추리알장조림', '된장찌개', '김치'],
-        dinner: ['밥', '모듬탕수육(돈육+가지)', '양배추찜&우렁쌈장', '김치콩나물국', '김치'],
-      });
-      data.sections.forEach(section => { section.image = images[section.key === 'breakfast' ? 1 : 0]!; });
-      // Partial generation failure must retain the original menu in its full width.
-      if (mode === 'today_teacher_full') delete data.sections[1]!.image;
-      const file = await renderer.render(data, directory);
-      const html = await readFile(file.replace('.jpg', '.html'), 'utf8');
-      await page.setContent(html);
-      await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
-      const layout = await page.evaluate(async () => {
-        await document.fonts.ready;
-        await Promise.all([...document.querySelectorAll<HTMLImageElement>('.food-photo')].map(image => image.decode()));
-        return [...document.querySelectorAll<HTMLElement>('.meal')].map(meal => {
-          const menu = meal.querySelector<HTMLElement>('.menu')!;
-          const photo = meal.querySelector<HTMLImageElement>('.food-photo');
-          const box = photo?.getBoundingClientRect();
-          return { width: box?.width, gap: box ? box.left - menu.getBoundingClientRect().right : undefined,
-            font: getComputedStyle(menu).fontSize, fits: menu.scrollWidth <= menu.clientWidth + 1,
-            inMeal: !box || box.bottom <= meal.getBoundingClientRect().bottom + 1,
-            visible: !photo || getComputedStyle(photo).display !== 'none',
-            edgeBlend: !photo || (getComputedStyle(photo).maskImage !== 'none' && getComputedStyle(photo).maskComposite.split(',').every(value => value.trim() === 'intersect')) };
-        });
-      });
-      assert.equal(load(html)('.breakfast .food-photo').length,
-        shouldGenerateFoodImage(data.request.restaurant, 'breakfast') && data.sections.some(section => section.key === 'breakfast') ? 1 : 0);
-      for (const entry of layout) {
-        assert.ok(entry.fits && entry.inMeal && entry.visible);
-        assert.ok(entry.edgeBlend);
-        assert.equal(entry.font, layout[0]!.font);
-        if (entry.width !== undefined) {
-          assert.ok(entry.width >= 220 && entry.width <= 420);
-          assert.ok(entry.gap! >= 23); widths.push(entry.width);
-        }
-      }
-      assert.equal(load(html)('.dish').length, data.sections.reduce((sum, section) => sum + section.items.length, 0));
-      assert.ok(!(await readFile(file.replace('.jpg', '.menu.json'), 'utf8')).includes('base64'));
-    }
-    assert.ok(widths.some(width => width < 420), '공간이 부족하면 사진 너비를 줄여야 합니다.');
-    const invalid = dormitoryStory(resolveStoryRequest('today_dormitory_lunch', '2026-10-08'), null);
-    invalid.sections[0]!.image = { dataUrl: 'https://example.com/photo.png', width: 1000, height: 714 };
-    await assert.rejects(storyHtml(invalid), /이미지 참조/);
-    invalid.sections[0]!.image = images[0]!;
-    invalid.sections[0]!.items = Array(100).fill('메뉴를 생략하지 않는 매우 긴 식단 항목');
-    await assert.rejects(renderer.render(invalid, directory), /메뉴가 이미지 영역을 초과/);
-  } finally { await renderer.close(); await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test('메뉴 항목은 제목처럼 임의로 굵어지지 않고 조합 기호 앞에서 줄바꿈할 수 있다', async () => {

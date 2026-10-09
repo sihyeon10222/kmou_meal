@@ -39,13 +39,6 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
-      - name: Restore food image cache
-        uses: actions/cache/restore@v4
-        with:
-          path: output/food-cache
-          key: food-images-whole-tray-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            food-images-whole-tray-v2-${{ runner.os }}-
       - name: Render or publish Stories
         shell: bash
         env:
@@ -59,9 +52,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-          STORY_AI_ENABLED: ${{ secrets.STORY_AI_ENABLED }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           args=()
           if [ "$MEAL" = "all" ]; then MEAL=full; fi
@@ -69,12 +59,6 @@ jobs:
           if [ "$PREVIEW" = "true" ]; then args+=(--preview); fi
           if [ "$RESTAURANT" != "all" ]; then args+=(--restaurant "$RESTAURANT" --meal "$MEAL"); fi
           npm run story -- "${args[@]}"
-      - name: Save food image cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: output/food-cache
-          key: food-images-whole-tray-v2-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Save images and receipts
         if: always()
         uses: actions/upload-artifact@v7
@@ -85,6 +69,5 @@ jobs:
             output/*.png
             output/*.json
             output/*.failed.html
-            output/food-cache/*.png
           if-no-files-found: ignore
           retention-days: 7

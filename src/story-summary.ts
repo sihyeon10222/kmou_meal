@@ -6,11 +6,8 @@ const cell = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '
 export function storySummary(results: RunResult[]): string {
   const lines = ['## Story 실행 결과', '', '| 날짜 | 모드 | 결과 | 상세 |', '| --- | --- | --- | --- |'];
   for (const result of results) {
-    let detail = result.warning ?? (result.error ? `${result.stage ?? 'unknown'}: ${result.error}`
+    const detail = result.warning ?? (result.error ? `${result.stage ?? 'unknown'}: ${result.error}`
       : result.emptyMenu ? '정상 조회: 등록된 식단 없음 안내' : result.mediaId ?? '-');
-    if (result.aiImages) {
-      detail += `; AI 사진: ${result.aiImages.map(image => `${image.meal}=${image.status}${image.error ? ` (${image.error})` : ''}`).join(', ')}`;
-    }
     lines.push(`| ${cell(result.targetDate)} | ${cell(result.mode)} | ${result.status}${result.warning ? ' (경고)' : ''} | ${cell(detail)} |`);
   }
   lines.push('', '재실행이 필요하면 실패한 식당만 선택하세요. 게시 성공/경고 항목은 재실행 시 중복 게시됩니다.',

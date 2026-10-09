@@ -6,7 +6,6 @@ import { shortDate, weekdayName } from './weekly-data.js';
 import { chromium, type Browser, type Page } from 'playwright';
 import type { MenuSection, StoryRenderData } from './story-data.js';
 import type { Restaurant } from './story-modes.js';
-import { shouldGenerateFoodImage } from './tray-profiles.js';
 
 const STORY_SIZE = { width: 1080, height: 1920 };
 const JPEG_QUALITY = 94;
@@ -43,13 +42,7 @@ function sectionHtml(section: MenuSection): string {
   const items = section.items.length
     ? section.items.map(item => `<p class="dish">${dishHtml(item)}</p>`).join('')
     : '<p class="dish empty">등록된 식단 없음</p>';
-  const image = section.image;
-  if (image && (!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image.dataUrl)
-    || !Number.isFinite(image.width) || image.width <= 0 || !Number.isFinite(image.height) || image.height <= 0)) {
-    throw new Error('음식 이미지 참조가 올바르지 않습니다.');
-  }
-  const photo = image ? `<img class="food-photo" src="${image.dataUrl}" width="${image.width}" height="${image.height}" alt=""/>` : '';
-  return `<section class="meal ${escapeHtml(section.key)}${image ? ' with-food' : ''}" aria-label="${escapeHtml(section.label)}"><div class="meal-heading"><span class="symbol ${symbol}"></span><h2>${escapeHtml(section.label)}</h2></div><div class="meal-body"><div class="menu">${items}</div>${photo}</div></section>`;
+  return `<section class="meal ${escapeHtml(section.key)}" aria-label="${escapeHtml(section.label)}"><div class="meal-heading"><span class="symbol ${symbol}"></span><h2>${escapeHtml(section.label)}</h2></div><div class="menu">${items}</div></section>`;
 }
 
 function buildStoryHtml(data: StoryRenderData, assets: TemplateAssets, layout: string): string {
@@ -60,8 +53,7 @@ function buildStoryHtml(data: StoryRenderData, assets: TemplateAssets, layout: s
     CLASSES: `${request.restaurant === 'badaro' ? 'badaro dormitory' : request.restaurant} ${request.scope}`,
     DATE: escapeHtml(`${shortDate(request.targetDate)}(${weekdayName(request.targetDate)})`),
     TITLE: { dormitory: '기숙사', badaro: '승선생활관', snack: '학식', teacher: '교직원식당' }[request.restaurant],
-    SECTIONS: sections.map(section => sectionHtml(shouldGenerateFoodImage(request.restaurant, section.key)
-      ? section : { key: section.key, label: section.label, items: section.items })).join(''),
+    SECTIONS: sections.map(sectionHtml).join(''),
   };
   return assets.template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => replacements[key] ?? '');
 }
@@ -80,7 +72,6 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
   // Values must be passed explicitly because this callback runs inside Chromium.
   await page.evaluate(async ({ width, minFontSize, maxFontSize, tolerance }) => {
     await document.fonts.ready;
-    await Promise.all([...document.querySelectorAll<HTMLImageElement>('.food-photo')].map(image => image.decode()));
     if (!document.fonts.check('560 50px Meal', '기숙사 식단')) {
       throw new Error('한글 폰트 로딩 실패');
     }
@@ -98,7 +89,6 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
     const measureSection = (section: HTMLElement, size: number) => {
       const clone = section.cloneNode(true) as HTMLElement;
       clone.style.cssText = `position:fixed;visibility:hidden;pointer-events:none;left:0;top:0;width:${section.clientWidth}px;height:auto;min-height:0;`;
-      clone.style.setProperty('--food-width', section.style.getPropertyValue('--food-width'));
       const menu = clone.querySelector<HTMLElement>('.menu');
       if (!menu) throw new Error('메뉴 요소가 없습니다.');
       menu.style.flex = 'none';
@@ -118,37 +108,19 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
       : heights;
     let best = 0;
     let heights: number[] = [];
-    const withPhotos = sections.filter(section => section.classList.contains('with-food'));
-    const fitsAvailable = (measured: number[]) => rowHeights(measured).reduce((sum, height) => sum + height, 0)
-      + 48 * (snack ? rowCount + 1 : rowCount) <= available + tolerance;
     for (let size = maxFontSize; size >= minFontSize; size--) {
-      // Find the largest common font with the minimum usable image width first.
-      withPhotos.forEach(section => section.style.setProperty('--food-width', '220px'));
       const measured = sections.map(section => measureSection(section, size));
+      const rows = rowHeights(measured);
       const fitsWidth = sections.every(section => {
         const menu = section.querySelector<HTMLElement>('.menu')!;
         setMenuTypography(menu, size);
         return menu.scrollWidth <= menu.clientWidth + tolerance;
       });
-      if (!fitsWidth || !fitsAvailable(measured)) continue;
-      best = size;
-      heights = measured;
-      // Expand each meal independently, sharing spare height in equal width steps.
-      // Long menus can keep a smaller tray while short menus use the full 420px.
-      for (let photoWidth = 240; photoWidth <= 420; photoWidth += 20) {
-        for (const section of withPhotos) {
-          const previous = section.style.getPropertyValue('--food-width');
-          if (parseFloat(previous) !== photoWidth - 20) continue;
-          section.style.setProperty('--food-width', `${photoWidth}px`);
-          const index = sections.indexOf(section);
-          const candidate = [...heights];
-          candidate[index] = measureSection(section, size);
-          const menu = section.querySelector<HTMLElement>('.menu')!;
-          if (fitsAvailable(candidate) && menu.scrollWidth <= menu.clientWidth + tolerance) heights = candidate;
-          else section.style.setProperty('--food-width', previous);
-        }
+      if (fitsWidth && rows.reduce((sum, height) => sum + height, 0) + 48 * (snack ? rowCount + 1 : rowCount) <= available + tolerance) {
+        best = size;
+        heights = measured;
+        break;
       }
-      break;
     }
     if (!best) throw new Error('메뉴가 이미지 영역을 초과합니다. 최소 글자 크기와 여백에서도 들어가지 않습니다.');
     const rows = rowHeights(heights);
@@ -190,18 +162,6 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
     }
     for (const section of document.querySelectorAll('.meal')) {
       const rect = section.getBoundingClientRect();
-      const photo = section.querySelector<HTMLImageElement>('.food-photo');
-      if (photo) {
-        const image = photo.getBoundingClientRect();
-        const menu = section.querySelector('.menu')!.getBoundingClientRect();
-        const heading = section.querySelector('.meal-heading')!.getBoundingClientRect();
-        if (!photo.complete || !photo.naturalWidth || image.width < 220 - tolerance || image.width > 420 + tolerance
-          || image.left < menu.right + 24 - tolerance || image.top < heading.bottom - tolerance
-          || image.bottom > rect.bottom + tolerance || image.right > rect.right + tolerance
-          || Math.abs(image.height - image.width * photo.naturalHeight / photo.naturalWidth) > tolerance) {
-          throw new Error(`음식 사진이 메뉴와 겹치거나 이미지 영역을 초과합니다: ${section.className}`);
-        }
-      }
       if (rect.bottom > safe.bottom + tolerance || rect.top < safe.top - tolerance
         || rect.left < safe.left - tolerance || rect.right > Math.min(safe.right, width) + tolerance) {
         throw new Error(`메뉴 레이아웃이 안전 영역을 초과합니다: ${section.className} ` +
@@ -231,7 +191,7 @@ export function createStoryRenderer(): StoryRenderer {
       await mkdir(outputDir, { recursive: true });
       const stem = resolve(outputDir, `${data.request.targetDate}-${data.request.mode}`);
       // Keep the exact input even when layout validation rejects the image.
-      await writeFile(`${stem}.menu.json`, JSON.stringify(data, (key, value: unknown) => key === 'dataUrl' ? undefined : value, 2));
+      await writeFile(`${stem}.menu.json`, JSON.stringify(data, null, 2));
 
       browser ??= chromium.launch({ headless: true }).catch(error => {
         browser = undefined;

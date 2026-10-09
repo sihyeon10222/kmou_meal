@@ -2,18 +2,8 @@ import type { DailyMenu } from './fetch-menu.js';
 import type { CoopDailyMenu } from './fetch-coop-menu.js';
 import type { StoryRequest } from './story-modes.js';
 
-export interface FoodImageResult {
-  meal: string;
-  status: 'generated' | 'cached' | 'skipped' | 'failed';
-  tray?: string;
-  imagePath?: string;
-  error?: string;
-}
-export interface MenuSection {
-  key: string; label: string; items: string[];
-  image?: { dataUrl: string; width: number; height: number };
-}
-export interface StoryRenderData { request: StoryRequest; sections: MenuSection[]; aiImages?: FoodImageResult[] }
+export interface MenuSection { key: string; label: string; items: string[] }
+export interface StoryRenderData { request: StoryRequest; sections: MenuSection[] }
 
 export function dormitoryStory(request: StoryRequest, menu: DailyMenu | null): StoryRenderData {
   return { request, sections: [

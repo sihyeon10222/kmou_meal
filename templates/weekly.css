@@ -21,4 +21,4 @@ p { margin: 0 0 .3em; word-break: keep-all; overflow-wrap: normal; }
 .panorama .cell { padding: 18px; }
 
 .panorama header { right: auto; width: calc(1080px - 2 * var(--header-margin)); }
-.update-notice { margin-top: 8px; font-size: 28px; color: #d32f2f; font-weight: 650; white-space: nowrap; }
+.update-notice { margin-top: 8px; font-size: 24px; font-weight: 650; white-space: nowrap; }

@@ -9,7 +9,7 @@ export interface PublishConfig {
   supabaseBucket: string;
 }
 
-const SECRET_NAMES = ['IG_ACCESS_TOKEN', 'SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'CLOUDFLARE_API_TOKEN'] as const;
+const SECRET_NAMES = ['IG_ACCESS_TOKEN', 'SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): PublishConfig {
   const required = (name: string): string => {
