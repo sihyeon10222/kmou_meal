@@ -223,11 +223,18 @@ test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 �
   try {
     const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
     await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
-    for (const mode of ['today_dormitory_full', 'today_badaro_full', 'today_teacher_full', 'today_snack', 'today_teacher_lunch'] as const) {
+    const cases = [
+      ...(['today_dormitory_full', 'today_badaro_full', 'today_teacher_full', 'today_snack'] as const).map(mode => ({ mode, empty: false })),
+      ...STORY_MODES.map(mode => ({ mode, empty: true })),
+      { mode: 'today_snack' as const, empty: true, sparse: true },
+    ];
+    for (const example of cases) {
+      const { mode, empty } = example;
       const request = resolveStoryRequest(mode, '2026-10-05');
       const data = ['dormitory', 'badaro'].includes(request.restaurant)
-        ? dormitoryStory(request, { date: '2026/10/05', breakfast: ['우유', '빵'], lunch: Array(7).fill('점심 메뉴'), dinner: Array(4).fill('저녁 메뉴') })
-        : coopStory(request, mode === 'today_teacher_lunch' ? emptyCoop : coopMenu);
+        ? dormitoryStory(request, empty ? null : { date: '2026/10/05', breakfast: ['우유', '빵'], lunch: Array(7).fill('점심 메뉴'), dinner: Array(4).fill('저녁 메뉴') })
+        : coopStory(request, empty ? emptyCoop : coopMenu);
+      if ('sparse' in example) data.sections[0]!.items = ['*한글날 미운영'];
       const file = await renderer.render(data, directory);
       await page.setContent(await readFile(file.replace('.jpg', '.html'), 'utf8'));
       await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
@@ -242,10 +249,7 @@ test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 �
         const gaps = [Math.min(...rows[0]!.map(box => box.top)) - header.bottom];
         for (let index = 1; index < rows.length; index++) gaps.push(Math.min(...rows[index]!.map(box => box.top)) - Math.max(...rows[index - 1]!.map(box => box.bottom)));
         const bottomGap = 1920 - Math.max(...rows.at(-1)!.map(box => box.bottom));
-        if (snack) {
-          if (Math.abs(bottomGap - 58 - gaps[0]!) > 1) throw new Error(`학식 중앙 정렬: ${bottomGap}, ${gaps[0]}`);
-          if (Math.abs(gaps[1]! - 48) > 1) throw new Error(`학식 행 간격: ${gaps[1]}`);
-        } else if (Math.abs(bottomGap - 58) > 1) throw new Error(`하단 여백: ${bottomGap}`);
+        if (Math.abs(bottomGap - 58 - gaps[0]!) > 1) throw new Error(`중앙 정렬: ${bottomGap}, ${gaps[0]}`);
         const typography = meals.map(meal => {
           const menu = meal.querySelector('.menu')!;
           const heading = meal.querySelector('.meal-heading')!;
@@ -262,7 +266,8 @@ test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 �
           nightError: rows.length === 3 ? Math.abs(night - (boxes[1]!.bottom + boxes[2]!.top) / 2) : 0 };
       });
       assert.equal(layout.left, 58); assert.equal(layout.right, 1022);
-      for (const gap of layout.gaps) { assert.ok(gap >= 47); if (!layout.snack) assert.ok(Math.abs(gap - layout.gaps[0]!) <= 1); }
+      if (empty && mode === 'today_snack') assert.ok(layout.gaps[1]! > 200, '빈 학식도 두 행 사이에 충분한 간격을 둔다');
+      for (const gap of layout.gaps) { assert.ok(gap >= 47); assert.ok(Math.abs(gap - layout.gaps[0]!) <= 1); }
       for (const typography of layout.typography) { assert.deepEqual(typography, layout.typography[0]); assert.equal(typography.padding, '24px'); assert.equal(typography.headingGap, '24px'); assert.ok(typography.fits); }
       assert.ok(layout.firstRowAligned && layout.morningError <= 1 && layout.nightError <= 1);
     }
