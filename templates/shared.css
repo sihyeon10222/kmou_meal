@@ -3,11 +3,11 @@
 html, body { width: 1080px; height: 1920px; margin: 0; }
 body { font-family: Meal, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
 .story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
-header { position: absolute; left: 58px; right: 58px; top: 164px; display: flex; align-items: baseline; justify-content: flex-start; gap: 24px; }
+header { position: absolute; left: 48px; right: 48px; top: 164px; display: flex; align-items: baseline; justify-content: flex-start; gap: 24px; }
 h1 { font-size: 72px; font-weight: 760; letter-spacing: -2px; margin: 0; white-space: nowrap; }
 .date { font-size: 72px; font-weight: 400; text-align: left; white-space: nowrap; }
 .meal { display: flex; flex-direction: column; min-height: 0; }
-.sections { position: absolute; left: 58px; right: 58px; top: 330px; bottom: 58px; min-height: 0; }
+.sections { position: absolute; left: 48px; right: 48px; top: 330px; bottom: 48px; min-height: 0; }
 .meal-heading { flex: 0 0 78px; display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #183d4426; padding-bottom: 25px; }
 h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px; margin: 0; }
 .symbol { width: 48px; height: 48px; display: inline-block; flex-shrink: 0; }
@@ -15,6 +15,7 @@ h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px;
 .moon { border-radius: 50%; box-shadow: inset 14px -9px 0 0 var(--moon); transform: rotate(-15deg); }
 .menu { flex: none; min-height: 0; padding-top: 24px; padding-bottom: 12px; display: flex; flex-direction: column; gap: 16px; font-size: 72px; font-weight: 560; line-height: 1.2; letter-spacing: -1px; }
 .dish { margin: 0; flex-shrink: 0; overflow-wrap: normal; word-break: keep-all; }
+.dish-part { white-space: nowrap; }
 .empty { opacity: .75; font-weight: 450 !important; }
 .night { position: absolute; inset: var(--night-start, 1038px) 0 0; background: var(--blue); }
 .dinner .meal-heading { border-color: #f5f1e738; }

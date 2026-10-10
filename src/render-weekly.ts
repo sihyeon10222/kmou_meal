@@ -27,7 +27,7 @@ export async function weeklyHtml(data: WeeklyPage, updatedOn?: string): Promise<
       return `<section class="cell ${section.key}"><h2>${section.label}</h2><div class="menu">${itemsHtml(section.items)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${data.kind} ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="heading-row"><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div>${updatedOn ? `<div class="update-notice">${shortDate(updatedOn)}(${weekdayName(updatedOn)})에 식단표 변경됨</div>` : ''}</header><div class="calendar">${days}</div></main></body></html>`;
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>@font-face{font-family:Meal;src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:100 900;} ${css}</style><body><main class="sheet ${data.kind} ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.kind === 'snack' ? 2 : 3}"><header><div class="heading-row"><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div>${updatedOn ? `<div class="update-notice">${shortDate(updatedOn)} (${weekdayName(updatedOn)})에 식단표 변경됨</div>` : ''}</header><div class="calendar">${days}</div></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
   const images: string[] = [];
@@ -52,6 +52,19 @@ async function renderWeeklyPage(data: WeeklyPage, week: string, outputDir: strin
     await page.evaluate(async () => {
       await document.fonts.ready;
       if (!document.fonts.check('450 24px Meal', '식단')) throw new Error('주간 한글 폰트 로딩 실패');
+      // Match the visible title's top inset to its existing left inset, excluding font leading.
+      const header = document.querySelector<HTMLElement>('header')!;
+      const title = document.querySelector<HTMLElement>('h1')!;
+      const style = getComputedStyle(title);
+      const context = document.createElement('canvas').getContext('2d')!;
+      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const metrics = context.measureText(title.textContent!);
+      const text = document.createRange();
+      text.selectNodeContents(title);
+      const inkTopOffset = text.getBoundingClientRect().top - header.getBoundingClientRect().top
+        + metrics.fontBoundingBoxAscent - metrics.actualBoundingBoxAscent;
+      const inkLeft = title.getBoundingClientRect().left - metrics.actualBoundingBoxLeft;
+      header.style.top = `${inkLeft - inkTopOffset}px`;
       const calendar = document.querySelector<HTMLElement>('.calendar')!;
       const days = [...document.querySelectorAll<HTMLElement>('.day')];
       const rowCount = days[0]!.querySelectorAll('.cell').length;

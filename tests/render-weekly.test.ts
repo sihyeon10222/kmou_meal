@@ -32,6 +32,25 @@ for (const kind of ['combined', 'badaro', 'dormitory'] as const) {
         const meta = await sharp(path).metadata();
         assert.equal(meta.width, 1080); assert.equal(meta.height, 1440);
       }
+      const headerBrowser = await chromium.launch({ headless: true });
+      try {
+        const page = await headerBrowser.newPage();
+        for (const restaurant of data.pages) {
+          await page.setContent(await readFile(join(dir, `${range.week}-${restaurant.kind}-weekly.html`), 'utf8'));
+          const insets = await page.evaluate(async () => {
+            await document.fonts.ready;
+            const title = document.querySelector('h1')!;
+            const style = getComputedStyle(title);
+            const context = document.createElement('canvas').getContext('2d')!;
+            context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            const metrics = context.measureText(title.textContent!);
+            const range = document.createRange(); range.selectNodeContents(title);
+            return { top: range.getBoundingClientRect().top + metrics.fontBoundingBoxAscent - metrics.actualBoundingBoxAscent,
+              left: title.getBoundingClientRect().left - metrics.actualBoundingBoxLeft };
+          });
+          assert.ok(Math.abs(insets.top - insets.left) <= 1, `${restaurant.kind}: ${JSON.stringify(insets)}`);
+        }
+      } finally { await headerBrowser.close(); }
       if (result.master) {
         const meta = await sharp(result.master).metadata();
         assert.equal(meta.width, 2160); assert.equal(meta.height, 1440);
@@ -124,7 +143,7 @@ test('compact ranges and update notices fit within the first panorama image', as
   const data = await fetcher('dormitory', range);
   const html = await weeklyHtml(data.pages[0]!, '2026-09-23');
   assert.match(html, /9\/21 ~ 9\/27/);
-  assert.match(html, /9\/23\(수\)에 식단표 변경됨/);
+  assert.match(html, /9\/23 \(수\)에 식단표 변경됨/);
   assert.doesNotMatch(await weeklyHtml(data.pages[0]!), /식단표 변경됨/);
   const browser = await chromium.launch({ headless: true });
   try {
@@ -137,8 +156,10 @@ test('compact ranges and update notices fit within the first panorama image', as
         const r = document.querySelector(selector)!.getBoundingClientRect();
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
       };
-      return { notice: rect('.update-notice'), calendar: rect('.calendar'), range: rect('.range'), title: rect('h1') };
+      return { noticeFont: getComputedStyle(document.querySelector('.update-notice')!).fontSize, noticeColor: getComputedStyle(document.querySelector('.update-notice')!).color, notice: rect('.update-notice'), calendar: rect('.calendar'), range: rect('.range'), title: rect('h1') };
     });
+    assert.equal(boxes.noticeFont, '28px');
+    assert.equal(boxes.noticeColor, 'rgb(211, 47, 47)');
     assert.ok(boxes.notice.right < 1080 && boxes.notice.left >= 0);
     assert.ok(boxes.notice.top >= boxes.title.bottom);
     assert.equal(boxes.notice.left, boxes.title.left);

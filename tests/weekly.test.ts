@@ -347,7 +347,7 @@ test('Wednesday weekend addition replaces, freezes elapsed days and refreshes fu
   assert.equal(prepared.updatedOn, '2026-09-23');
   assert.ok(prepared.pages[0]!.days.slice(0, 3).every(day => day.sections[0]!.items[0] === '기존 메뉴'));
   assert.ok(prepared.pages[0]!.days.slice(3).every(day => day.sections[0]!.items[0] === '새 메뉴'));
-  assert.match(prepared.caption, /9\/23 수요일에 학교 측의 식단 업데이트로 인해 다시 올라온 게시물입니다\.\n\n학교 측/);
+  assert.match(prepared.caption, /9\/23 \(수\)에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다\.\n\n학교 측/);
   assert.equal(hasFutureAddition(next, prepared.pages, '2026-09-23'), false);
 });
 test('Friday additions through Friday are ignored, but through Sunday warrant a post', () => {
@@ -404,7 +404,7 @@ test('force replacement renders the update notice even for a legacy record', asy
   deps.published = async () => oldRecord('combined');
   deps.render = async value => {
     assert.equal(value.updatedOn, today);
-    assert.match(value.caption, /다시 올라온 게시물/);
+    assert.match(value.caption, /재업로드된 식단표/);
     return { images: ['a', 'b'] };
   };
   assert.equal((await runWeeklyAt(range, 'combined', false, true, deps))[0]!.status, 'published');
@@ -421,4 +421,33 @@ test('malformed stored snapshots fail before any automatic publication', async (
   const s = services();
   s.records.set(`${range.week}/combined/success.json`, { ...oldRecord('combined'), menuSnapshot: [{ kind: 'snack', days: 'bad' }] });
   await assert.rejects(publishedWeekly(s.storage, range.week, 'combined'), /올바르지/);
+});
+
+
+test('재게시 본문은 변경 안내, 지연 안내, 식당 해시태그만 포함한다', () => {
+  assert.equal(weeklyCaption('badaro', weeklyRange('2026-10-08').dates, undefined, '2026-10-08'),
+    "10/8 (목)에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다.\n\n학교 측의 식단 업데이트가 늦을 경우, 식단표에 '등록된 식단 없음'으로 표시될 수 있습니다.\n\n#해양대학교 #해양대승선생활관");
+});
+
+test('모든 식당과 통합 게시물의 최초·재게시 본문 형식', () => {
+  const dates = weeklyRange('2026-10-08').dates;
+  const delay = "학교 측의 식단 업데이트가 늦을 경우, 식단표에 '등록된 식단 없음'으로 표시될 수 있습니다.";
+  const cases = [
+    { kind: 'dormitory', page: undefined, name: '기숙사 식단', tags: '#해양대학교 #해양대기숙사' },
+    { kind: 'badaro', page: undefined, name: '승선생활관 식단', tags: '#해양대학교 #해양대승선생활관' },
+    { kind: 'combined', page: undefined, name: '학식 및 교직원 식당 식단', tags: '#해양대학교 #해양대학식 #해양대교직원식당' },
+    { kind: 'combined', page: 'snack', name: '학식 식단', tags: '#해양대학교 #해양대학식' },
+    { kind: 'combined', page: 'teacher', name: '교직원 식당 식단', tags: '#해양대학교 #해양대교직원식당' },
+  ] as const;
+  for (const scenario of cases) {
+    const selectedDates = scenario.kind === 'combined' ? dates.slice(0, 5) : dates;
+    const initial = weeklyCaption(scenario.kind, selectedDates, scenario.page);
+    assert.equal(initial, `2026년 10월 5일 ~ 10월 ${scenario.kind === 'combined' ? 9 : 11}일 ${scenario.name}입니다.\n\n${delay}\n\n${scenario.tags}`);
+    for (const [date, label] of [['2026-10-08', '10/8 (목)'], ['2026-10-11', '10/11 (일)'], ['2027-01-01', '1/1 (금)']] as const) {
+      const repost = weeklyCaption(scenario.kind, selectedDates, scenario.page, date);
+      assert.equal(repost, `${label}에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다.\n\n${delay}\n\n${scenario.tags}`);
+      assert.equal(repost.split('\n\n').length, 3);
+      assert.doesNotMatch(repost, /\n{3}|\r|^\s|\s$/);
+    }
+  }
 });
