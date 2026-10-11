@@ -15,7 +15,7 @@ export function storyDesignData(kind: WeeklyPageKind, scenario: DesignScenario =
     sections.forEach(section => { section.items = ['백미밥']; });
     // Sixteen lines fit an equal-height cafeteria row with 1.25 line spacing.
     // Larger rows are covered by the renderer's overflow rejection test.
-    sections[1]!.items = Array.from({ length: kind === 'snack' ? 16 : 18 }, (_, i) => ['백미밥', '돼지불고기', '미역국', '배추김치'][i % 4]!);
+    sections[1]!.items = Array.from({ length: kind === 'snack' ? 15 : 18 }, (_, i) => ['백미밥', '돼지불고기', '미역국', '배추김치'][i % 4]!);
   }
   if (scenario === 'long') {
     sections[0]!.items = ['바지락순두부찌개', '치킨치즈더블돈가스', '빅고구마치즈돈가스'];

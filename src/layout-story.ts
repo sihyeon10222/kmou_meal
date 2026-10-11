@@ -3,6 +3,8 @@ export async function layoutStory(): Promise<void> {
   await document.fonts.ready;
   if (!document.fonts.check('500 50px Meal', '기숙사 식단')) throw new Error('한글 폰트 로딩 실패');
   const height = 1920, padding = 32, gap = 32, tolerance = 1;
+  // A 48px pill extends 24px into its card; reserve another 40px before menu ink.
+  const verticalPadding = 64;
   const story = document.querySelector<HTMLElement>('.story')!;
   const root = story.querySelector<HTMLElement>('.sections')!;
   const sections = [...root.querySelectorAll<HTMLElement>('.meal')];
@@ -67,12 +69,12 @@ export async function layoutStory(): Promise<void> {
   const measure = (section: HTMLElement, size: number, centered = false) => {
     const menu = section.querySelector<HTMLElement>('.menu')!;
     typography(menu, size);
-    menu.style.top = `${padding}px`;
+    menu.style.top = `${verticalPadding}px`;
     const first = ink(menu.firstElementChild!);
-    menu.style.top = `${padding + section.getBoundingClientRect().top + padding - first.top}px`;
+    menu.style.top = `${verticalPadding + section.getBoundingClientRect().top + verticalPadding - first.top}px`;
     const bounds = ink(menu);
     const box = section.getBoundingClientRect();
-    if (centered) menu.style.top = `${parseFloat(menu.style.top) + (box.height - 2 * padding - (bounds.bottom - bounds.top)) / 2}px`;
+    if (centered) menu.style.top = `${parseFloat(menu.style.top) + (box.height - 2 * verticalPadding - (bounds.bottom - bounds.top)) / 2}px`;
     // Horizontal fit is independent of the final vertical centering.
     const fits = bounds.left >= box.left + padding - tolerance
       && bounds.right <= box.right - padding + tolerance
@@ -88,14 +90,14 @@ export async function layoutStory(): Promise<void> {
     const measured = sections.map(section => measure(section, size));
     rows = rowsFor(measured.map(item => item.content));
     const fitsHeight = snack
-      ? rows.every(row => row + 2 * padding <= available / rowCount)
-      : rows.reduce((sum, row) => sum + row + 2 * padding, 0) <= available;
+      ? rows.every(row => row + 2 * verticalPadding <= available / rowCount)
+      : rows.reduce((sum, row) => sum + row + 2 * verticalPadding, 0) <= available;
     if (measured.every(item => item.fits) && fitsHeight) break;
   }
   if (size < 28) throw new Error('메뉴가 이미지 영역을 초과합니다. 최소 글자 크기와 여백에서도 들어가지 않습니다.');
   const total = rows.reduce((sum, row) => sum + row, 0);
-  const spare = available - total - 2 * padding * rowCount;
-  const heights = rows.map(row => snack || allEmpty ? available / rowCount : row + 2 * padding + spare * row / total);
+  const spare = available - total - 2 * verticalPadding * rowCount;
+  const heights = rows.map(row => snack || allEmpty ? available / rowCount : row + 2 * verticalPadding + spare * row / total);
   const starts = heights.map((_, index) => heights.slice(0, index).reduce((sum, value) => sum + value + gap, 0));
   if (snack) heights.forEach((value, index) => root.style.setProperty(`--snack-row-${index + 1}`, `${value}px`));
   sections.forEach((section, index) => {
@@ -117,9 +119,9 @@ export async function layoutStory(): Promise<void> {
     const labelBox = label.getBoundingClientRect();
     const previousRow = sections[index - columns]?.getBoundingClientRect();
     if (box.left < safe.left - tolerance || box.right > safe.right + tolerance || box.bottom > safe.bottom + tolerance
-      || bounds.top < box.top + padding - tolerance || bounds.bottom > box.bottom - padding + tolerance
+      || bounds.top < box.top + verticalPadding - tolerance || bounds.bottom > box.bottom - verticalPadding + tolerance
       || Math.abs((bounds.top - box.top) - (box.bottom - bounds.bottom)) > tolerance
-      || labelBox.right > box.right - padding + tolerance || labelBox.bottom > bounds.top
+      || labelBox.right > box.right - padding + tolerance || labelBox.bottom + 40 > bounds.top + tolerance
       || (previousRow && labelBox.top < previousRow.bottom) || !measure(section, size, true).fits) {
       throw new Error(`메뉴 레이아웃이 안전 영역을 초과합니다: ${section.className}`);
     }

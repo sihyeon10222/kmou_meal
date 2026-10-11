@@ -231,17 +231,17 @@ test('네 식당은 메뉴를 읽기 쉬운 크기로 제한하고 모든 항목
   }
 });
 
-test('줄간격을 넓힌 학식은 18개 항목이 한 박스를 넘으면 내용을 자르지 않고 게시 전 실패한다', async () => {
+test('라벨 간격을 확보한 학식은 16개 항목이 한 박스를 넘으면 내용을 자르지 않고 게시 전 실패한다', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'kmou-story-dense-overflow-'));
   const renderer = createStoryRenderer();
   try {
     const data = storyDesignData('snack', 'dense');
-    data.sections[1]!.items = Array.from({ length: 18 }, (_, index) => ['백미밥', '돼지불고기', '미역국', '배추김치'][index % 4]!);
+    data.sections[1]!.items = Array.from({ length: 16 }, (_, index) => ['백미밥', '돼지불고기', '미역국', '배추김치'][index % 4]!);
     await assert.rejects(renderer.render(data, directory), /메뉴가 이미지 영역을 초과/);
     const stem = join(directory, '2026-10-05-today_snack');
     await assert.rejects(access(`${stem}.jpg`));
     const html = load(await readFile(`${stem}.failed.html`, 'utf8'));
-    assert.equal(html('.meal.set-meal .dish').length, 18);
+    assert.equal(html('.meal.set-meal .dish').length, 16);
   } finally { await renderer.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -340,7 +340,7 @@ test('공통 카드 디자인의 실제 글자 여백·안전영역·분량 배�
         close(meal.label.height, 48, 'larger story pill height');
         assert.ok(meal.box.bottom - meal.content.bottom >= 31);
         assert.ok(meal.content.bottom <= 1920 - 64 + 1);
-        assert.ok(meal.label.bottom < meal.content.top && meal.fits && meal.noWrappedNames);
+        assert.ok(meal.content.top - meal.label.bottom >= 39 && meal.fits && meal.noWrappedNames);
         assert.equal(meal.radius, '32px');
         assert.equal(meal.blur, 'none'); assert.equal(meal.shadow, 'none');
         assert.match(meal.labelBlur, /blur\(3px\)/); assert.notEqual(meal.labelShadow, 'none');
@@ -360,7 +360,7 @@ test('공통 카드 디자인의 실제 글자 여백·안전영역·분량 배�
       if (columns === 2 || data.sections.every(section => !section.items.length)) rows.forEach(row => close(row.box.height, rows[0]!.box.height, 'cafeteria and empty rows have equal heights'));
       else {
         const contentHeights = rows.map((_, index) => Math.max(...layout.meals.slice(index * columns, (index + 1) * columns).map(meal => meal.content.bottom - meal.content.top)));
-        const ratios = rows.map((row, index) => (row.box.height - 64) / contentHeights[index]!);
+        const ratios = rows.map((row, index) => (row.box.height - 128) / contentHeights[index]!);
         ratios.forEach(ratio => assert.ok(Math.abs(ratio - ratios[0]!) < .01));
       }
     }
