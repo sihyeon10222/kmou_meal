@@ -2,8 +2,9 @@ import { parseArgs } from 'node:util';
 import { seoulDate, validateDate } from './dates.js';
 import { resolveManualStoryMode, type RunMode } from './story-modes.js';
 import { WEEKLY_KINDS, weeklyRange, type WeeklyKind } from './weekly-data.js';
+import { artMode, type StoryArtMode } from './story-art.js';
 
-export interface StoryOptions { mode: RunMode; baseDate: string; preview: boolean }
+export interface StoryOptions { mode: RunMode; baseDate: string; preview: boolean; art?: StoryArtMode }
 
 export function parseCliOptions(args: string[]) {
   const [command, ...options] = args;
@@ -12,12 +13,14 @@ export function parseCliOptions(args: string[]) {
     restaurant: { type: 'string', default: 'all' },
     date: { type: 'string' }, preview: { type: 'boolean', default: false },
     meal: { type: 'string' }, week: { type: 'string' }, force: { type: 'boolean' },
+    art: { type: 'string' },
   } });
   const restaurant = values.restaurant;
   const date = validateDate(values.date || seoulDate());
   if (command === 'feed') {
     if (!['all', ...WEEKLY_KINDS].includes(restaurant)) throw new Error('feed restaurant: all / combined / badaro / dormitory');
     if (values.meal !== undefined) throw new Error('--meal은 story 전용입니다.');
+    if (values.art !== undefined) throw new Error('--art는 story 전용입니다.');
     if (values.date && values.week) throw new Error('--date와 --week는 하나만 지정하세요.');
     return { command, restaurant: restaurant as WeeklyKind | 'all', range: weeklyRange(date, values.week), preview: values.preview, force: values.force ?? false } as const;
   }
@@ -27,5 +30,7 @@ export function parseCliOptions(args: string[]) {
   if (!['breakfast', 'lunch', 'dinner', 'full'].includes(meal)) throw new Error('meal: breakfast / lunch / dinner / full');
   if (restaurant === 'all' && meal !== 'full') throw new Error('--meal은 --restaurant로 식당을 지정한 뒤 사용하세요.');
   const mode = restaurant === 'all' ? 'today_full_batch' : resolveManualStoryMode('today', restaurant, meal);
-  return { command, mode, baseDate: date, preview: values.preview } as const;
+  return { command, mode, baseDate: date, preview: values.preview,
+    ...(values.art === undefined ? {} : { art: artMode(values.art, 'cache') }),
+  } as const;
 }

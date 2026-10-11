@@ -22,7 +22,7 @@
 | `--date YYYY-MM-DD` | Story는 해당 날짜, feed는 월~토에 해당 주·일요일에 다음 주. 생략하면 한국시간 오늘 |
 | `--preview` | 이미지 생성만 수행. Supabase·Instagram·게시 기록에 접근하지 않음 |
 
-Story 전용: `--meal full|breakfast|lunch|dinner`. 기본은 `full`이며 끼니를 선택할 때는 식당도 지정합니다. Snack은 항상 네 코너 한 장입니다.
+Story 전용: `--meal full|breakfast|lunch|dinner`. 기본은 `full`이며 끼니를 선택할 때는 식당도 지정합니다. Snack은 항상 네 코너 한 장입니다. `--art generate|cache|off`로 음식 일러스트 생성을 제어합니다. CLI 옵션 → `STORY_ART_MODE` → 기본값 순서이며, 기본값은 실제 게시 `generate`, 로컬 미리보기 `cache`입니다.
 
 Feed 전용: `--week YYYY-Www`로 정확한 주차를 지정하거나 `--force`로 성공한 게시물을 재게시합니다. `--date`와 `--week`는 동시에 지정하지 않습니다.
 주간 게시물은 메뉴가 있는 식당부터 게시합니다. 빈 날짜는 `등록된 식단 없음`으로 표시하고, 한 식당이 통째로 비어 있으면 통합 게시물에서 그 식당 이미지는 제외합니다. 게시한 식단에서 한국시간 내일 이후의 빈 끼니에 메뉴가 추가된 경우에만 새 게시물을 올리고 이전 게시물은 수동으로 삭제합니다. 메뉴 수정·삭제만으로는 재게시하지 않습니다.
@@ -74,6 +74,27 @@ WebStorm에서 **File → Open**으로 프로젝트를 열고 **View → Tool Wi
 디자인을 수정할 때마다 `npx tsx scripts/preview-weekly-design.ts`로 주간 게시물과 스토리 미리보기를 다시 생성합니다. `output/weekly-redesign/index.html`에서 네 식당의 주간 일반·빈 식단·재게시 원본과 파노라마 분할 이미지, 스토리 일반·전체/일부 빈 식단·분량 편차·긴 메뉴·개별 끼니를 확인할 수 있습니다. 이미지 주소에 생성 버전을 붙여 이전 이미지가 캐시에 남지 않게 합니다. 미리보기는 고정된 예시 식단을 사용하며 실제 게시를 실행하지 않습니다.
 
 학식 Story의 두 열은 긴 메뉴명 때문에 화면 밖으로 늘어나지 않도록 고정된 폭 안에서 글자 크기를 조절합니다. 최소 글자 크기에서도 담을 수 없는 식단은 게시 전에 실패하며, 진단용 `.failed.png`·`.failed.html`과 원본 `.menu.json`을 Artifact에 보관합니다.
+
+### 해양이 음식 일러스트
+
+기숙사·승선생활관·교직원식당 Story에는 점심·저녁에서 AI가 고른 음식 한 가지씩을 해양이 위의 말풍선으로 표시합니다. 학식과 아침 단독 Story는 제외합니다. 한 끼만 있거나 점심·저녁 단독 Story이면 말풍선 하나를 표시하며, 빈 식단·미운영 안내는 음식 후보에서 제외합니다.
+
+- 해양이는 제공된 `assets/illustrations/haeyangi.png` 원본을 그대로 사용하며 AI에 전송하거나 다시 생성하지 않습니다. 메뉴 선택은 Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, 말풍선·음식 생성은 `@cf/black-forest-labs/flux-2-klein-4b`를 사용합니다. 끼니별 선택을 JSON 스키마의 필수 항목으로 지정하고, 인덱스가 실제 식단에 속하는지 검사합니다. 점심·저녁이 모두 있는데 한 끼가 누락된 캐시는 재사용하지 않습니다.
+- 개발 기본 해상도는 음식 말풍선당 **512×512**입니다. 점심·저녁은 각각 하나씩, 총 두 말풍선을 생성하며, **각 말풍선 안에 Lunch/Dinner 제목·해/달 아이콘·음식 그림을 함께 생성**합니다. 음식은 말풍선 폭의 약 60%로 그려 테두리와 제목 사이에 흰 여백을 둡니다. RGB로 받은 이미지의 자홍색 외부 배경만 투명하게 제거하고 흰 말풍선과 음식 속 색은 보존한 뒤, 원본 해양이와 함께 Sharp로 합성합니다. 해상도는 `createStoryArt`의 `size` 옵션(256/512/768/1024)으로 나중에 변경할 수 있습니다.
+- 기존 스토리를 먼저 완성한 뒤 메뉴 줄·알약·헤더의 실제 영역을 측정합니다. 장식 전체 폭은 **최대 520px, 최소 312px**, 글자와의 거리는 최소 **16px**이며 오른쪽 점심·저녁 영역의 빈 공간에 배치합니다. 메뉴 글자·상하 가운데 정렬·박스 배치는 바꾸지 않습니다. 최소 크기도 들어가지 않으면 AI 호출 없이 장식을 생략합니다.
+- 메뉴 선택과 원본 생성 결과는 `.cache/story-art/`에 저장합니다. 선택은 메뉴 목록별, 이미지는 음식명·끼니·모델·스타일 버전·해상도별로 재사용합니다. 날짜·식당·합성 위치만 바뀌면 같은 이미지를 재활용하며, 투명 배경 처리와 크기 변경에도 새 생성이 필요 없습니다. GitHub Actions에서는 실행 간에 이 캐시를 복원·저장합니다. 캐시가 만료되면 `generate`에서만 다시 생성합니다.
+- 인증 누락, 선택 오류, 타임아웃, 생성·투명화 오류는 해당 장식을 생략하고 **기존 스토리 게시를 계속**합니다. 비용이 중복 발생할 수 있는 이미지 요청의 자동 재시도는 하지 않습니다. `.art.json`에 선택 메뉴·생략 사유·배치·호출/캐시 횟수를 남기고, 적용된 경우 `.base.jpg`도 보관합니다.
+
+```bash
+# 최초 음식 그림 생성 + 디자인 미리보기 (Instagram 업로드 없음)
+npx tsx scripts/preview-story-art.ts generate
+# 이후 배치·크기 검토는 저장된 음식 그림만 재사용
+npx tsx scripts/preview-story-art.ts
+# 실제 학교 메뉴를 조회하되 새 음식 그림도 생성하는 미리보기
+npm run preview -- --restaurant dormitory --art generate
+```
+
+`output/story-ai/index.html`에서 세 식당·학식 제외·빈 식단·한 끼·긴 메뉴 사례를 확인합니다. 기존 `output/weekly-redesign/index.html`도 저장된 음식 그림을 사용하며 이 비교 페이지로 연결됩니다. 일반 디자인 미리보기와 자동 테스트는 새 이미지를 생성하지 않습니다. Cloudflare 공식 [Klein API 안내](https://developers.cloudflare.com/changelog/post/2026-01-15-flux-2-klein-4b-workers-ai/)의 multipart 입력과 [요금표](https://developers.cloudflare.com/workers-ai/platform/pricing/)를 기준으로 구현했습니다.
 
 ## 자동화: 예약은 두 개
 
@@ -137,7 +158,7 @@ https://api.github.com/repos/sihyeon10222/kmou_meal/actions/workflows/weekly.yml
 
 자동 운영에는 `daily.yml`, `weekly.yml`, `ci.yml` 세 workflow가 있습니다. 앞의 두 개가 실제 실행이고 `ci.yml`은 코드 검증 전용입니다. **Actions → Daily KMOU Stories → Run workflow**에서 전체 또는 개별 Story를 실행할 수 있습니다.
 
-- **Daily KMOU Stories**: `restaurant`, `meal`, `date`, `preview`. `restaurant=all`, `meal=all`이면 네 식당 전체를 실행합니다.
+- **Daily KMOU Stories**: `restaurant`, `meal`, `date`, `preview`, `art`. `restaurant=all`, `meal=all`이면 네 식당 전체를 실행합니다. `art` 기본값은 `generate`이며, Actions의 미리보기에서도 실제 음식 그림을 생성합니다. 반복 디자인 확인에는 `cache`, 장식 제외에는 `off`를 선택합니다.
 - **KMOU Weekly Feed**: `restaurant` (`all`, `combined`, `badaro`, `dormitory`), `date` 또는 `week`, `preview`, `force`.
 
 Daily의 preview 기본값은 false, Weekly의 기본값은 true입니다. 실제 게시하려면 preview를 해제합니다. 동일 계정의 게시 workflow는 하나의 대기열을 공유합니다.
@@ -159,8 +180,10 @@ gh workflow run weekly.yml --ref main -f restaurant=all -f preview=true -f week=
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase 서버 키 |
 | `SUPABASE_BUCKET` | Public 버킷 이름, 보통 `stories` |
 | `SUPABASE_SECRET_KEY` | 선택. 설정하면 service_role 키보다 우선 |
+| `CLOUDFLARE_ACCOUNT_ID` | 선택. Story 음식 일러스트용 Cloudflare 계정 ID |
+| `CLOUDFLARE_API_TOKEN` | 선택. 해당 계정의 Workers AI 실행 권한을 가진 토큰 |
 
-인증 변수 이름은 유지합니다. 실행 옵션은 CLI나 Actions 입력으로만 전달하며 인증 정보는 로그·Git에 저장하지 않습니다.
+기본 미리보기에는 인증이 필요 없으며 `--art generate`로 새 그림을 생성할 때는 Cloudflare 인증이 필요합니다. 인증 정보는 로그·Git에 저장하지 않습니다.
 
 ```bash
 npm run check-setup

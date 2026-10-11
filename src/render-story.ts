@@ -7,6 +7,9 @@ import { layoutStory } from './layout-story.js';
 import { chromium, type Browser, type Page } from 'playwright';
 import type { MenuSection, StoryRenderData } from './story-data.js';
 import type { Restaurant } from './story-modes.js';
+import { measureStoryArtLayout } from './story-art-layout.js';
+import type { StoryArtDecorator } from './story-art.js';
+import { safeError } from './config.js';
 
 const STORY_SIZE = { width: 1080, height: 1920 };
 const JPEG_QUALITY = 94;
@@ -67,7 +70,7 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
 }
 
 /** Reuses one browser and template snapshot for sequential Stories in a batch. */
-export function createStoryRenderer(): StoryRenderer {
+export function createStoryRenderer(options: { art?: StoryArtDecorator } = {}): StoryRenderer {
   let browser: Promise<Browser> | undefined;
   let assets: Promise<TemplateAssets> | undefined;
   const layouts = new Map<Restaurant, Promise<string>>();
@@ -96,7 +99,22 @@ export function createStoryRenderer(): StoryRenderer {
         await page.setContent(html, { waitUntil: 'load' });
         await fitMenusAndValidateLayout(page);
         await writeFile(`${stem}.html`, await page.content());
-        await page.screenshot({ path: `${stem}.jpg`, type: 'jpeg', quality: JPEG_QUALITY });
+        const base = await page.screenshot({ type: 'png' });
+        // Optional decoration is isolated from the validated, publishable base Story.
+        let decorated: Buffer | undefined;
+        if (options.art) {
+          try {
+            const result = await options.art.decorate(data, await measureStoryArtLayout(page), base);
+            await writeFile(`${stem}.art.json`, JSON.stringify(result.report, null, 2));
+            decorated = result.image;
+            console.info(`Story AI ${data.request.mode}: ${result.report.status}${result.report.reason ? ` (${result.report.reason})` : ''}`);
+            if (decorated) await page.screenshot({ path: `${stem}.base.jpg`, type: 'jpeg', quality: JPEG_QUALITY });
+          } catch (error) {
+            console.warn(`Story AI 생략: ${safeError(error)}`);
+          }
+        }
+        if (decorated) await writeFile(`${stem}.jpg`, decorated);
+        else await page.screenshot({ path: `${stem}.jpg`, type: 'jpeg', quality: JPEG_QUALITY });
         return `${stem}.jpg`;
       } catch (error) {
         // Diagnostic files are never returned as publishable images.

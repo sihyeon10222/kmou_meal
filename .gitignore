@@ -17,3 +17,4 @@ dist/
 output/*
 !output/.gitkeep
 .DS_Store
+/.cache/story-art/

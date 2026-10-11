@@ -20,6 +20,11 @@ on:
         description: '이미지만 생성'
         type: boolean
         default: false
+      art:
+        description: '음식 일러스트 (generate: 새 생성 허용 / cache: 재사용만 / off: 제외)'
+        type: choice
+        options: [generate, cache, off]
+        default: generate
 
 permissions:
   contents: read
@@ -39,6 +44,12 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Check and build
         run: npm run typecheck && npm test && npm run build
+      - name: Restore food illustration cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .cache/story-art
+          key: story-art-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: story-art-v1-${{ runner.os }}-
       - name: Render or publish Stories
         shell: bash
         env:
@@ -46,6 +57,9 @@ jobs:
           PREVIEW: ${{ inputs.preview }}
           RESTAURANT: ${{ inputs.restaurant }}
           MEAL: ${{ inputs.meal }}
+          STORY_ART_MODE: ${{ inputs.art || 'generate' }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -59,6 +73,12 @@ jobs:
           if [ "$PREVIEW" = "true" ]; then args+=(--preview); fi
           if [ "$RESTAURANT" != "all" ]; then args+=(--restaurant "$RESTAURANT" --meal "$MEAL"); fi
           npm run story -- "${args[@]}"
+      - name: Save food illustration cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: .cache/story-art
+          key: story-art-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Save images and receipts
         if: always()
         uses: actions/upload-artifact@v7

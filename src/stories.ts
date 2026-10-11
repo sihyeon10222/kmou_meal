@@ -8,12 +8,15 @@ import { createPublishingServices } from './publishing-services.js';
 import type { StoryOptions } from './cli-options.js';
 import { postStory } from './post-story.js';
 import { storySummary } from './story-summary.js';
+import { artMode, createStoryArt } from './story-art.js';
 
-export async function executeStories({ mode, baseDate, preview }: StoryOptions) {
+export async function executeStories({ mode, baseDate, preview, art }: StoryOptions) {
   await mkdir('output', { recursive: true });
   // 미리보기·주말 skip에서는 게시 서비스를 초기화하지 않습니다.
   const getServices = createPublishingServices();
-  const renderer = createStoryRenderer();
+  const renderer = createStoryRenderer({ art: createStoryArt({
+    mode: artMode(art ?? process.env.STORY_ART_MODE, preview ? 'cache' : 'generate'),
+  }) });
   const results = await runStories(mode, baseDate, preview, {
     fetchDormitory: fetchDailyMenu,
     fetchBadaro: fetchBadaroMenu,

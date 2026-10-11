@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
 import sharp from 'sharp';
 import { createStoryRenderer } from '../src/render-story.js';
+import { createStoryArt } from '../src/story-art.js';
 import { storyDesignData, storyDesignScenarios } from '../tests/fixtures/story-design.js';
 import { renderWeekly } from '../src/render-weekly.js';
 import { designKinds, weeklyDesignData } from '../tests/fixtures/weekly-design.js';
@@ -33,7 +34,8 @@ for (const scenario of scenarios) {
   sections.push(`<section id="${scenario}"><h2>${labels[scenario]}</h2>${cards.join('')}</section>`);
 }
 const storySections: string[] = [];
-const renderer = createStoryRenderer();
+// Design iterations only reuse illustrations; they never silently spend generation credits.
+const renderer = createStoryRenderer({ art: createStoryArt({ mode: 'cache' }) });
 const storyLabels = { normal: '일반 식단', empty: '빈 식단', partial: '일부 빈 식단', dense: '분량 편차', long: '긴 메뉴·추가 구성' };
 try {
   for (const scenario of storyDesignScenarios) {
@@ -58,5 +60,5 @@ try {
 } finally { await renderer.close(); }
 await writeFile(resolve(root, 'index.html'), `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>게시물·스토리 디자인 미리보기</title><style>
 *{box-sizing:border-box}body{margin:0;background:#dfe5ee;color:#183d44;font-family:system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:32px}h1{font-size:28px}nav{display:flex;flex-wrap:wrap;gap:16px;margin:28px 0}a{color:inherit}section{margin:64px 0}article{margin:32px 0 64px}img{display:block;width:100%;height:auto}.halves,.story-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px}.halves span{display:block;margin-bottom:12px}details{margin-top:16px}pre{white-space:pre-wrap;line-height:1.7;padding:20px;background:#fff}p{line-height:1.6}.story-grid article{margin:0 0 24px}@media(max-width:600px){main{padding:16px}.story-grid{grid-template-columns:1fr}}
-</style><main><h1>게시물·스토리 디자인 미리보기</h1><p>디자인 검토용 예시 식단입니다. 파노라마는 전체 원본 아래에 실제로 나눈 두 장을 표시합니다. 이미지를 누르면 원본 크기로 볼 수 있습니다.</p><nav>${scenarios.map(scenario => `<a href="#${scenario}">주간 · ${labels[scenario]}</a>`).join('')}${storyDesignScenarios.map(scenario => `<a href="#story-${scenario}">스토리 · ${storyLabels[scenario]}</a>`).join('')}<a href="#story-single">스토리 · 개별 끼니</a></nav>${sections.join('')}${storySections.join('')}</main></html>`);
+</style><main><h1>게시물·스토리 디자인 미리보기</h1><p>디자인 검토용 예시 식단입니다. 파노라마는 전체 원본 아래에 실제로 나눈 두 장을 표시합니다. 이미지를 누르면 원본 크기로 볼 수 있습니다.</p><nav><a href="../story-ai/index.html">해양이 음식 일러스트 비교</a>${scenarios.map(scenario => `<a href="#${scenario}">주간 · ${labels[scenario]}</a>`).join('')}${storyDesignScenarios.map(scenario => `<a href="#story-${scenario}">스토리 · ${storyLabels[scenario]}</a>`).join('')}<a href="#story-single">스토리 · 개별 끼니</a></nav>${sections.join('')}${storySections.join('')}</main></html>`);
 console.log(root);
