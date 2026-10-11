@@ -1,24 +1,30 @@
-* { box-sizing: border-box; }
-body { margin: 0; font-family: Meal, sans-serif; color: #183d44; background: #f5f1e7; }
-.sheet { --page-margin: 24px; --header-margin: 58px; height: 1440px; position: relative; overflow: hidden; }
-header { position: absolute; top: var(--header-margin); left: var(--header-margin); right: var(--header-margin); }
-h1 { font-size: 72px; letter-spacing: -2px; margin: 0; font-weight: 760; }
-.heading-row { display: flex; align-items: baseline; justify-content: flex-start; gap: 24px; margin: 0; }
-.heading-row h1 { flex-shrink: 0; white-space: nowrap; }
-.range { font-size: 72px; text-align: left; white-space: nowrap; }
-.calendar { position: absolute; top: 240px; bottom: var(--page-margin); left: var(--page-margin); right: var(--page-margin); display: grid; grid-template-columns: repeat(var(--days), minmax(0,1fr)); }
-.day { display: grid; grid-template-rows: 70px repeat(var(--rows), minmax(0, 1fr)); min-width: 0; min-height: 0; height: 100%; border-right: 1px solid #183d4426; }
-.day:first-child { border-left: 1px solid #183d4426; }
-.day-title { display:flex; align-items:center; justify-content:center; gap: 8px; font-size: 25px; font-weight: 700; border-bottom: 2px solid #183d4440; }
-.cell { min-height: 0; min-width: 0; padding: 18px 12px; border-bottom: 1px solid #183d4426; }
-.cell.breakfast { background: #fff; }
-.cell.dinner { background: #2259b1; color: #fff; }
-h2 { font-size: 20px; font-weight: 760; margin: 0 0 17px; white-space: nowrap; text-align: center; }
-.menu { font-size: 26px; line-height: 1.38; font-weight: 450; letter-spacing: -.5px; }
-p { margin: 0 0 .3em; word-break: keep-all; overflow-wrap: normal; }
-.no-break { white-space: nowrap; }
-.empty { opacity: .65; }
-.panorama .cell { padding: 18px; }
+.sheet { --page-margin: 24px; --header-inset: 64px; --header-gap: 64px; --meal-radius: var(--radius); height: 1440px; position: relative; overflow: hidden; }
+header { position: absolute; top: var(--header-inset); left: var(--header-inset); right: var(--header-inset); }
+.heading-row { display: flex; align-items: baseline; gap: var(--header-inset); }
+h1 { flex-shrink: 0; font-size: 72px; line-height: 1.2; letter-spacing: -2px; margin: 0; font-weight: 800; white-space: nowrap; }
+.range { font-size: 64px; line-height: 1.2; font-weight: 400; letter-spacing: -1px; color: var(--muted); text-align: left; white-space: nowrap; }
+.update-notice { position: absolute; top: 100%; left: 0; right: 0; margin: 0; font-size: 28px; line-height: 1.35; color: var(--changed); font-weight: 650; white-space: nowrap; }
+.calendar { position: absolute; bottom: var(--page-margin); left: var(--page-margin); right: var(--page-margin); display: grid; grid-template-columns: repeat(var(--days), minmax(0, 1fr)); }
+.day { display: grid; grid-template-rows: 48px repeat(var(--rows), minmax(0, 1fr)); row-gap: 24px; min-width: 0; min-height: 0; height: 100%; }
+.day-title { display: flex; align-items: center; justify-content: center; }
+.weekday { font-size: 28px; line-height: 1.2; font-weight: 600; color: var(--ink); }
+.day.weekend .weekday { color: var(--blue); }
+.cell { position: relative; min-height: 0; min-width: 0; padding: 32px 16px 16px; background: transparent; }
+.day:first-child .cell { border-radius: var(--meal-radius) 0 0 var(--meal-radius); }
+.day:last-child .cell { border-radius: 0 var(--meal-radius) var(--meal-radius) 0; }
+.day:not(:last-child) .cell::after { content: ''; position: absolute; right: 0; top: 16px; bottom: 16px; width: 1px; background: #183d4414; }
+.day:not(:last-child) .cell.dinner::after { background: rgb(255 255 255 / .28); }
 
-.panorama header { right: auto; width: calc(1080px - 2 * var(--header-margin)); }
-.update-notice { margin-top: 8px; font-size: 28px; color: #d32f2f; font-weight: 650; white-space: nowrap; }
+h2 { position: absolute; top: -14px; left: 16px; font-size: 20px; line-height: 28px; height: 28px; margin: 0; z-index: 1; }
+.menu { font-size: 30px; line-height: 1.4; font-weight: 500; letter-spacing: 0; }
+p { margin: 0 0 .25em; word-break: keep-all; overflow-wrap: normal; }
+p:last-child { margin-bottom: 0; }
+.menu-part, .no-break { white-space: nowrap; }
+.menu-part.can-wrap { white-space: normal; overflow-wrap: anywhere; }
+.empty { opacity: .8; white-space: nowrap; font-size: min(1em, 24px); text-align: center; }
+
+.meal-surfaces { position: absolute; inset: 0; pointer-events: none; }
+.meal-surface { position: absolute; border-radius: var(--radius); }
+
+.panorama .empty { font-size: 30px; }
+.changed-menu { color: var(--changed); }

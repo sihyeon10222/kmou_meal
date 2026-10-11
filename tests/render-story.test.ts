@@ -8,6 +8,8 @@ import { chromium } from 'playwright';
 import { createStoryRenderer, storyHtml } from '../src/render-story.js';
 import { coopStory, dormitoryStory } from '../src/story-data.js';
 import { STORY_MODES, resolveStoryRequest } from '../src/story-modes.js';
+import { storyDesignData, storyDesignScenarios } from './fixtures/story-design.js';
+import { designKinds } from './fixtures/weekly-design.js';
 import { coopMenu, emptyCoop } from './fixtures.js';
 import type { CoopDailyMenu } from '../src/fetch-coop-menu.js';
 
@@ -87,7 +89,13 @@ test('10/2 학식의 긴 메뉴명이 두 열을 밀어내지 않고 모든 항�
         return { left: rect.left, right: rect.right, bottom: rect.bottom, width: rect.width,
           fontSize: parseFloat(getComputedStyle(menu).fontSize),
           text: [...menu.querySelectorAll('.dish')].map(item => item.textContent),
-          fits: menu.scrollWidth <= menu.clientWidth + 1 && menu.scrollHeight <= menu.clientHeight + 1 };
+          // Font ascent/descent may extend past a line box without clipping.
+          // Check the rendered text against the card's actual safe area.
+          fits: menu.scrollWidth <= menu.clientWidth + 1 && [...menu.querySelectorAll('.dish')].every(item => {
+            const text = document.createRange(); text.selectNodeContents(item);
+            return [...text.getClientRects()].every(line => line.left >= rect.left + 31
+              && line.right <= rect.right - 31 && line.top >= rect.top + 31 && line.bottom <= rect.bottom - 31);
+          }) };
       });
       return { safe: { left: safe.left, right: safe.right, bottom: safe.bottom }, sections };
     });
@@ -96,7 +104,7 @@ test('10/2 학식의 긴 메뉴명이 두 열을 밀어내지 않고 모든 항�
       assert.deepEqual(section.text, data.sections[index]!.items);
       assert.ok(section.left >= measured.safe.left && section.right <= measured.safe.right);
       assert.ok(section.bottom <= measured.safe.bottom + 1);
-      assert.equal(section.width, 468);
+      assert.equal(section.width, 492);
       assert.ok(section.fits && section.fontSize >= 28);
     }
   } finally {
@@ -128,7 +136,7 @@ test('실제 fixture 3종 렌더, 긴 메뉴 축소, 삭제 없이 초과 실패
       if (mode === 'today_snack') {
         assert.equal(html('.meal').length, 4);
         assert.equal(numberFromStyle('.menu:first', 'font-size'), numberFromStyle('.menu:last', 'font-size'));
-        assert.notEqual(numberFromStyle('.sections', '--snack-row-1'), numberFromStyle('.sections', '--snack-row-2'));
+        assert.equal(numberFromStyle('.sections', '--snack-row-1'), numberFromStyle('.sections', '--snack-row-2'));
       }
       if (mode === 'today_teacher_full') {
         assert.equal(html('.meal').length, 3);
@@ -180,19 +188,19 @@ test('모든 스토리 모드에서 제목과 날짜는 같은 줄의 안전 영
           dateSize: getComputedStyle(document.querySelector('.date')!).fontSize,
           menuTop: document.querySelector('.sections')!.getBoundingClientRect().top };
       });
-      assert.equal(layout.left, 48);
-      assert.equal(layout.right, 1032);
+      assert.equal(layout.left, 64);
+      assert.equal(layout.right, 1016);
       assert.equal(layout.top, 164);
       assert.equal(layout.titleSize, '72px');
       assert.equal(layout.dateSize, '72px');
       assert.ok(Math.abs(layout.titleTop - layout.dateTop) < 1);
-      assert.ok(Math.abs(layout.dateLeft - layout.titleRight - 24) <= 1);
+      assert.ok(Math.abs(layout.dateLeft - layout.titleRight - 64) <= 1);
       assert.ok(layout.bottom < layout.menuTop);
     }
   } finally { await browser.close(); }
 });
 
-test('네 식당은 남는 공간을 사용해 메뉴를 확대하고 모든 항목을 유지한다', async () => {
+test('네 식당은 메뉴를 읽기 쉬운 크기로 제한하고 모든 항목을 유지한다', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'kmou-story-spacing-'));
   const renderer = createStoryRenderer();
   try {
@@ -212,7 +220,7 @@ test('네 식당은 남는 공간을 사용해 메뉴를 확대하고 모든 항
       for (const menu of html('.menu').toArray()) {
         const style = html(menu).attr('style')!;
         // The cafeteria may shrink further to keep long names on one line.
-        assert.ok(Number(/font-size:\s*(\d+)px/.exec(style)![1]) >= (request.restaurant === 'snack' ? 28 : 54));
+        assert.ok(Number(/font-size:\s*(\d+)px/.exec(style)![1]) >= (request.restaurant === 'snack' ? 28 : 44));
         assert.equal(Number(/gap:\s*(\d+)px/.exec(style)![1]), Math.max(8, Math.round(Number(/font-size:\s*(\d+)px/.exec(style)![1]) * .16)));
       }
       assert.equal(html('.dish').length, data.sections.reduce((sum, section) => sum + section.items.length, 0));
@@ -223,38 +231,45 @@ test('네 식당은 남는 공간을 사용해 메뉴를 확대하고 모든 항
   }
 });
 
-test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 중앙 경계', async () => {
+test('줄간격을 넓힌 학식은 18개 항목이 한 박스를 넘으면 내용을 자르지 않고 게시 전 실패한다', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kmou-story-dense-overflow-'));
+  const renderer = createStoryRenderer();
+  try {
+    const data = storyDesignData('snack', 'dense');
+    data.sections[1]!.items = Array.from({ length: 18 }, (_, index) => ['백미밥', '돼지불고기', '미역국', '배추김치'][index % 4]!);
+    await assert.rejects(renderer.render(data, directory), /메뉴가 이미지 영역을 초과/);
+    const stem = join(directory, '2026-10-05-today_snack');
+    await assert.rejects(access(`${stem}.jpg`));
+    const html = load(await readFile(`${stem}.failed.html`, 'utf8'));
+    assert.equal(html('.meal.set-meal .dish').length, 18);
+  } finally { await renderer.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('공통 카드 디자인의 실제 글자 여백·안전영역·분량 배분을 네 식당과 모든 모드에서 검증한다', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'kmou-uniform-spacing-'));
   const renderer = createStoryRenderer();
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
-    await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
-    const cases = [
-      ...(['today_dormitory_full', 'today_badaro_full', 'today_teacher_full', 'today_snack'] as const).map(mode => ({ mode, empty: false })),
-      ...STORY_MODES.map(mode => ({ mode, empty: true })),
-      { mode: 'today_snack' as const, empty: true, sparse: true },
-    ];
-    for (const example of cases) {
-      const { mode, empty } = example;
-      const request = resolveStoryRequest(mode, '2026-10-05');
-      const data = ['dormitory', 'badaro'].includes(request.restaurant)
-        ? dormitoryStory(request, empty ? null : { date: '2026/10/05', breakfast: ['우유', '빵'], lunch: Array(7).fill('점심 메뉴'), dinner: Array(4).fill('저녁 메뉴') })
-        : coopStory(request, empty ? emptyCoop : coopMenu);
-      if ('sparse' in example) data.sections[0]!.items = ['*한글날 미운영'];
+    const cases = designKinds.flatMap(kind => storyDesignScenarios.map(scenario => storyDesignData(kind, scenario)));
+    cases.push(...STORY_MODES.map(mode => {
+      const request = resolveStoryRequest(mode, '2026-12-30');
+      return ['dormitory', 'badaro'].includes(request.restaurant) ? dormitoryStory(request, null) : coopStory(request, emptyCoop);
+    }));
+    for (const data of cases) {
       const file = await renderer.render(data, directory);
       await page.setContent(await readFile(file.replace('.jpg', '.html'), 'utf8'));
       await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
       const layout = await page.evaluate(async () => {
         await document.fonts.ready;
         const canvas = document.createElement('canvas').getContext('2d')!;
-        const inkBounds = (element: Element) => {
-          const style = getComputedStyle(element);
-          canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const ink = (element: Element) => {
           const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
           const range = document.createRange();
-          let top = Infinity, bottom = -Infinity;
+          let top = Infinity, bottom = -Infinity, left = Infinity, right = -Infinity;
           for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const style = getComputedStyle(node.parentElement!);
+            canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
             let offset = 0;
             for (const char of node.textContent ?? '') {
               if (char.trim()) {
@@ -263,69 +278,88 @@ test('내용 높이에 따른 균등 여백과 공통 글자 크기 및 배경 �
                 const baseline = range.getBoundingClientRect().top + metrics.fontBoundingBoxAscent;
                 top = Math.min(top, baseline - metrics.actualBoundingBoxAscent);
                 bottom = Math.max(bottom, baseline + metrics.actualBoundingBoxDescent);
+                const rect = range.getBoundingClientRect();
+                left = Math.min(left, rect.left - metrics.actualBoundingBoxLeft);
+                right = Math.max(right, rect.left + metrics.actualBoundingBoxRight);
               }
               offset += char.length;
             }
           }
-          return { top, bottom };
+          return { top, bottom, left, right };
         };
-        const headerBottom = Math.max(...[...document.querySelector('header')!.children].map(element => inkBounds(element).bottom));
-        const root = document.querySelector('.sections')!.getBoundingClientRect();
-        const meals = [...document.querySelectorAll('.meal')];
-        const boxes = meals.map(meal => meal.getBoundingClientRect());
-        const snack = document.querySelector('.story')!.classList.contains('snack');
-        const rows = snack ? [boxes.slice(0, 2), boxes.slice(2)] : boxes.map(box => [box]);
-        const starts = rows.map(row => Math.min(...row.map(box => box.top)));
-        const ends = rows.map(row => Math.max(...row.map(box => box.bottom)));
-        const boxStarts = [headerBottom, ...starts.slice(1).map(top => top - 48)];
-        const boxEnds = [...boxStarts.slice(1), 1920];
-        const topInsets = starts.map((top, index) => top - boxStarts[index]!);
-        const bottomInsets = ends.map((bottom, index) => boxEnds[index]! - bottom);
-        const boxHeights = boxEnds.map((end, index) => end - boxStarts[index]!);
-        const rowHeights = ends.map((end, index) => end - starts[index]!);
-        const typography = meals.map(meal => {
+        const rect = (element: Element) => {
+          const r = element.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height };
+        };
+        const header = document.querySelector('header')!;
+        const headerInk = [...header.children].map(ink);
+        const meals = [...document.querySelectorAll('.meal')].map(meal => {
           const menu = meal.querySelector('.menu')!;
-          const heading = meal.querySelector('.meal-heading')!;
+          const label = meal.querySelector('h2')!;
           const style = getComputedStyle(menu);
-          return { font: style.fontSize, gap: style.gap, line: style.lineHeight,
-            menuInset: inkBounds(menu.firstElementChild!).top - heading.getBoundingClientRect().bottom,
-            bottomError: Math.abs(inkBounds(menu.lastElementChild!).bottom - meal.getBoundingClientRect().bottom),
-            headingGap: getComputedStyle(heading).gap, fits: menu.scrollWidth <= menu.clientWidth + 1 && menu.scrollHeight <= menu.clientHeight + 1 };
+          return { box: rect(meal), content: ink(menu), label: rect(label), labelInk: ink(label),
+            menu: rect(menu), font: style.fontSize, gap: style.gap, line: style.lineHeight,
+            textColor: style.color, spacing: style.letterSpacing,
+            emptyFonts: [...menu.querySelectorAll('.empty')].map(node => parseFloat(getComputedStyle(node).fontSize)),
+            labelBlur: getComputedStyle(label).backdropFilter, labelShadow: getComputedStyle(label).boxShadow,
+            labelColor: getComputedStyle(label).backgroundColor,
+            color: getComputedStyle(meal).backgroundColor, blur: getComputedStyle(meal).backdropFilter, shadow: getComputedStyle(meal).boxShadow, radius: getComputedStyle(meal).borderRadius,
+            fits: menu.scrollWidth <= menu.clientWidth + 1,
+            text: [...menu.querySelectorAll('.dish')].map(dish => dish.textContent),
+            noWrappedNames: [...menu.querySelectorAll('.dish-part, .empty')].every(part => {
+              const range = document.createRange(); range.selectNodeContents(part);
+              return new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size === 1;
+            }) };
         });
-        for (const dish of document.querySelectorAll('.dish:not(.empty)')) {
-          const parts = [...dish.querySelectorAll('.dish-part')];
-          const line = parseFloat(getComputedStyle(dish).lineHeight);
-          if (!parts.length || parts.some(part => part.getClientRects().length !== 1)) throw new Error('메뉴명 내부 줄바꿈');
-          if (parts.length === 1 && dish.getBoundingClientRect().height > line + 1) throw new Error(`한 줄 메뉴가 분리됨: ${dish.textContent}`);
-          if (parts.slice(1).some(part => !part.textContent?.startsWith('+'))) throw new Error('추가 메뉴 외 줄바꿈 지점');
-        }
-        const story = document.querySelector<HTMLElement>('.story')!;
-        const morning = parseFloat(story.style.getPropertyValue('--morning-end'));
-        const night = parseFloat(story.style.getPropertyValue('--night-start'));
-        return { left: root.left, right: root.right, topInsets, bottomInsets, boxHeights, rowHeights, typography, snack,
-          firstRowAligned: !snack || Math.abs(boxes[0]!.top - boxes[1]!.top) < 1,
-          morningError: rows.length === 3 ? Math.abs(morning - boxEnds[0]!) : 0,
-          nightError: rows.length === 3 ? Math.abs(night - boxEnds[1]!) : 0 };
+        return { root: rect(document.querySelector('.sections')!), header: rect(header), meals,
+          titleInk: ink(header.querySelector('h1')!), dateInk: ink(header.querySelector('.date')!),
+          headerTop: Math.min(...headerInk.map(bounds => bounds.top)), headerBottom: Math.max(...headerInk.map(bounds => bounds.bottom)),
+          oldDecorations: document.querySelectorAll('.night, .symbol, footer').length };
       });
-      assert.equal(layout.left, 48); assert.equal(layout.right, 1032);
-      for (const inset of layout.topInsets) assert.ok(Math.abs(inset - 48) <= 1);
-      for (const inset of layout.bottomInsets) assert.ok(inset >= 47.99);
-      if (empty && !('sparse' in example)) {
-        for (const box of layout.boxHeights) assert.ok(Math.abs(box - layout.boxHeights[0]!) <= 1);
-      } else {
-        const ratios = layout.boxHeights.map((box, index) => (box - 96) / layout.rowHeights[index]!);
-        for (const ratio of ratios) assert.ok(Math.abs(ratio - ratios[0]!) <= 0.01);
+      const close = (actual: number, expected: number, label: string) => assert.ok(Math.abs(actual - expected) <= 1, `${data.request.mode} ${label}: ${actual} vs ${expected}`);
+      const columns = data.request.restaurant === 'snack' ? 2 : 1;
+      const rows = layout.meals.filter((_, index) => index % columns === 0);
+      close(layout.root.left, 32, 'outer left'); close(1080 - layout.root.right, 32, 'outer right');
+      close(1920 - layout.root.bottom, 32, 'outer bottom');
+      close(layout.header.top, 164, 'header container safe top');
+      close(layout.titleInk.left, 64, 'visible title left');
+      close(layout.dateInk.left - layout.titleInk.right, layout.titleInk.left, 'visible name/date gap matches left margin');
+      assert.ok(layout.headerTop >= 187);
+      close(layout.meals[0]!.labelInk.top - layout.headerBottom, 32, 'header/label ink gap');
+      assert.equal(layout.oldDecorations, 0);
+      for (const [index, meal] of layout.meals.entries()) {
+        const row = rows[Math.floor(index / columns)]!;
+        close(meal.box.top, row.box.top, 'row top'); close(meal.box.height, row.box.height, 'row height');
+        close(meal.content.top - meal.box.top, meal.box.bottom - meal.content.bottom, 'visible menu vertically centered');
+        assert.ok(meal.content.top - meal.box.top >= 31);
+        close(meal.menu.left - meal.box.left, 32, 'menu left padding');
+        close(meal.box.right - meal.menu.right, 32, 'menu right padding');
+        close((meal.label.top + meal.label.bottom) / 2, meal.box.top, 'label on card boundary');
+        assert.ok(meal.box.bottom - meal.content.bottom >= 31);
+        assert.ok(meal.content.bottom <= 1920 - 64 + 1);
+        assert.ok(meal.label.bottom < meal.content.top && meal.fits && meal.noWrappedNames);
+        assert.equal(meal.radius, '32px');
+        assert.equal(meal.blur, 'none'); assert.equal(meal.shadow, 'none');
+        assert.match(meal.labelBlur, /blur\(3px\)/); assert.notEqual(meal.labelShadow, 'none');
+        assert.equal(meal.labelColor, 'rgba(255, 255, 255, 0.22)');
+        assert.ok(parseFloat(meal.font) <= (data.sections.every(section => !section.items.length) ? 36 : 48));
+        meal.emptyFonts.forEach(size => assert.ok(size <= 36));
+        close(parseFloat(meal.line), parseFloat(meal.font) * 1.25, 'menu line height');
+        assert.equal(meal.spacing, 'normal');
+        assert.equal(meal.font, layout.meals[0]!.font); assert.equal(meal.gap, layout.meals[0]!.gap); assert.equal(meal.line, layout.meals[0]!.line);
+        const section = data.sections[index]!;
+        assert.deepEqual(meal.text, section.items.length ? section.items : ['등록된 식단 없음']);
+        assert.equal(meal.color, section.key === 'breakfast' ? 'rgb(255, 255, 255)' : section.key === 'dinner' ? 'rgb(34, 89, 177)' : 'rgb(218, 233, 255)');
+        assert.equal(meal.textColor, section.key === 'dinner' ? 'rgb(255, 255, 255)' : 'rgb(24, 61, 68)');
       }
-      for (const typography of layout.typography) {
-        assert.equal(typography.font, layout.typography[0]!.font);
-        assert.equal(typography.gap, layout.typography[0]!.gap);
-        assert.equal(typography.line, layout.typography[0]!.line);
-        assert.ok(Math.abs(typography.menuInset - 24) <= 1);
-        assert.ok(typography.bottomError <= 1);
-        assert.equal(typography.headingGap, '24px');
-        assert.ok(typography.fits);
+      rows.slice(1).forEach((row, index) => close(row.box.top - rows[index]!.box.bottom, 32, 'card gap'));
+      if (columns === 2) close(layout.meals[1]!.box.left - layout.meals[0]!.box.right, 32, 'column gap matches row gap');
+      if (columns === 2 || data.sections.every(section => !section.items.length)) rows.forEach(row => close(row.box.height, rows[0]!.box.height, 'cafeteria and empty rows have equal heights'));
+      else {
+        const contentHeights = rows.map((_, index) => Math.max(...layout.meals.slice(index * columns, (index + 1) * columns).map(meal => meal.content.bottom - meal.content.top)));
+        const ratios = rows.map((row, index) => (row.box.height - 64) / contentHeights[index]!);
+        ratios.forEach(ratio => assert.ok(Math.abs(ratio - ratios[0]!) < .01));
       }
-      assert.ok(layout.firstRowAligned && layout.morningError <= 1 && layout.nightError <= 1);
     }
   } finally { await renderer.close(); await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });

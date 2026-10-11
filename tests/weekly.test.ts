@@ -47,12 +47,11 @@ test('current week Monday–Saturday, following week Sunday, and ISO boundaries'
   for (const week of ['2025-W53', '2026-W00', '2026-W54', '2026-W1']) assert.throws(() => weeklyRange('2026-01-01', week));
   assert.throws(() => weeklyRange('2026-02-30'));
 });
-test('captions use actual ranges, kind hashtags and year rollover', () => {
+test('captions omit the weekly date introduction and retain kind hashtags', () => {
   const notice = "학교 측의 식단 업데이트가 늦을 경우, 식단표에 '등록된 식단 없음'으로 표시될 수 있습니다.";
-  assert.equal(weeklyCaption('dormitory', range.dates), `2026년 9월 21일 ~ 9월 27일 기숙사 식단입니다.\n\n${notice}\n\n#해양대학교 #해양대기숙사`);
-  assert.equal(weeklyCaption('combined', range.dates.slice(0, 5)), `2026년 9월 21일 ~ 9월 25일 학식 및 교직원 식당 식단입니다.\n\n${notice}\n\n#해양대학교 #해양대학식 #해양대교직원식당`);
-  assert.match(weeklyCaption('badaro', range.dates), /#해양대승선생활관$/);
-  assert.match(weeklyCaption('dormitory', weeklyRange('2026-12-27').dates), /2026년 12월 28일 ~ 2027년 1월 3일/);
+  assert.equal(weeklyCaption('dormitory', range.dates), `${notice}\n\n#해양대학교 #해양대기숙사`);
+  assert.equal(weeklyCaption('combined', range.dates.slice(0, 5)), `${notice}\n\n#해양대학교 #해양대학식 #해양대교직원식당`);
+  assert.equal(weeklyCaption('badaro', weeklyRange('2026-12-27').dates), `${notice}\n\n#해양대학교 #해양대승선생활관`);
 });
 test('weekly fetch preserves all cells, uses 5/7 days and shares coop responses', async () => {
   const calls: string[] = [];
@@ -71,9 +70,23 @@ test('weekly fetch preserves all cells, uses 5/7 days and shares coop responses'
   assert.deepEqual(combined.pages.map(page => page.kind), ['snack', 'teacher']);
   assert.equal(teacher!.days.length, 5); assert.equal(dorm.days.length, 7);
   assert.deepEqual(teacher!.days[0]!.sections.map(section => section.label), ['Breakfast', 'Lunch', 'Dinner']);
-  assert.deepEqual(snack!.days[0]!.sections.map(section => section.key), ['snack', 'set-meal']);
+  assert.deepEqual(snack!.days[0]!.sections.map(section => section.key), ['western', 'ramen', 'snack', 'set-meal']);
+  assert.deepEqual(snack!.days[0]!.sections.map(section => section.label), ['양식코너', '라면코너', '분식코너', '정식']);
+  assert.deepEqual(snack!.days[1]!.sections.map(section => section.items), [coopMenu.snackCorner.western, coopMenu.snackCorner.ramen, coopMenu.snackCorner.snack, coopMenu.snackCorner.setMeal]);
   assert.deepEqual(badaro.days[0]!.sections[0]!.items, ['승선 조식']);
   assert.ok(dorm.days.every(day => day.sections.length === 3 && day.sections.every(section => !section.items.length)));
+});
+test('old two-corner snapshots retain past menus within the new four-corner layout', async () => {
+  const fetcher = createWeeklyFetcher({ dormitory: async () => null, badaro: async () => null, coop: async () => coopMenu });
+  const data = await fetcher('combined', range);
+  const previous = structuredClone(data.pages);
+  previous[0]!.days.forEach(day => { day.sections = day.sections.slice(2); });
+  const prepared = prepareWeekly(data, previous, range.monday, true)!;
+  const past = prepared.pages[0]!.days[0]!;
+  assert.deepEqual(past.sections.map(section => section.key), ['western', 'ramen', 'snack', 'set-meal']);
+  assert.deepEqual(past.sections.slice(0, 2).map(section => section.items), [[], []]);
+  assert.deepEqual(past.sections.slice(2), previous[0]!.days[0]!.sections);
+  assert.deepEqual(prepared.pages[0]!.days[1], data.pages[0]!.days[1]);
 });
 test('API errors propagate instead of becoming empty menu data', async () => {
   const fetcher = createWeeklyFetcher({ badaro: async () => { throw new Error('badaro network'); }, dormitory: async () => { throw new Error('network'); }, coop: async () => { throw new Error('parser'); } });
@@ -193,7 +206,8 @@ test('통합 게시물은 메뉴 있는 식당 한 장만 올리고 다른 두 �
   assert.deepEqual(events.filter(event => event.startsWith('post:')), ['post:combined', 'post:badaro', 'post:dormitory']);
   const prepared = publishableWeekly(await deps.fetch('combined', range));
   assert.deepEqual(prepared?.pages.map(page => page.kind), ['teacher']);
-  assert.match(prepared?.caption ?? '', /교직원 식당 식단/);
+  assert.match(prepared?.caption ?? '', /#해양대교직원식당/);
+  assert.doesNotMatch(prepared?.caption ?? '', /#해양대학식/);
 });
 function services() {
   const records = new Map<string, unknown>(); const events: string[] = [];
@@ -338,6 +352,25 @@ function fullWeek(): WeeklyData {
   return { ...data('dormitory'), pages: [{ kind: 'dormitory', days: range.dates.map((date, i) => ({ date,
     sections: ['breakfast', 'lunch', 'dinner'].map(key => ({ key, label: key, items: i < 5 ? ['기존 메뉴'] : [] })) })) }] };
 }
+test('replacement highlights only added and edited future dishes, ignoring moves, whitespace and preserved dates', () => {
+  const old = fullWeek();
+  old.pages[0]!.days[4]!.sections[0]!.items = ['백미밥', '미역국', '계란말이', '배추김치'];
+  const next = structuredClone(old);
+  next.pages[0]!.days[0]!.sections[0]!.items = ['과거 수정'];
+  next.pages[0]!.days[2]!.sections[0]!.items = ['오늘 수정'];
+  next.pages[0]!.days[4]!.sections[0]!.items = ['배추김치', '백미밥', ' 미역국 ', '돼지불고기', '사과'];
+  next.pages[0]!.days[6]!.sections[1]!.items = ['새로 등록된 식단'];
+  const prepared = prepareWeekly(next, old.pages, '2026-09-23', true)!;
+  assert.deepEqual(prepared.menuChanges, [
+    { kind: 'dormitory', date: range.dates[4], section: 'breakfast', indexes: [3, 4] },
+    { kind: 'dormitory', date: range.dates[6], section: 'lunch', indexes: [0] },
+  ]);
+  const hash = weeklyMenuHash(prepared);
+  assert.equal(weeklyMenuHash({ ...prepared, menuChanges: [] }), hash);
+  assert.equal(prepareWeekly(prepared, prepared.pages, '2026-09-23', true)!.menuChanges, undefined);
+  assert.equal(prepareWeekly(next, undefined, '2026-09-23', false)!.menuChanges, undefined);
+  assert.equal(prepareWeekly(next, undefined, '2026-09-23', true)!.menuChanges, undefined);
+});
 test('Wednesday weekend addition replaces, freezes elapsed days and refreshes future menus', async () => {
   const old = fullWeek();
   const next = structuredClone(old);
@@ -377,6 +410,17 @@ test('lock recheck skips a future addition that another execution already publis
   s.records.set(`${range.week}/dormitory/success.json`, { ...oldRecord('dormitory'), menuSnapshot: prepared.pages });
   const result = await postWeeklyRaw(prepared, ['a', 'b'], false, s.storage, s.instagram, async () => {}, today);
   assert.equal(result.skipped, true); assert.ok(!s.events.includes('publish'));
+});
+test('lock recheck rejects images whose changed-menu highlights no longer match the saved baseline', async () => {
+  const s = services();
+  const previous = fullWeek();
+  const latest = structuredClone(previous);
+  latest.pages[0]!.days[6]!.sections[0]!.items = ['새 메뉴'];
+  const prepared = prepareWeekly(latest, previous.pages, today, true)!;
+  s.records.set(`${range.week}/dormitory/success.json`, { ...oldRecord('dormitory'), menuSnapshot: previous.pages });
+  prepared.menuChanges = [];
+  await assert.rejects(postWeeklyRaw(prepared, ['a', 'b'], false, s.storage, s.instagram, async () => {}, today), /게시 기준이 변경/);
+  assert.ok(!s.events.includes('publish'));
 });
 
 test('automatic replacement saves exactly the frozen rendered snapshot, then skips next run', async () => {
@@ -433,16 +477,17 @@ test('모든 식당과 통합 게시물의 최초·재게시 본문 형식', () 
   const dates = weeklyRange('2026-10-08').dates;
   const delay = "학교 측의 식단 업데이트가 늦을 경우, 식단표에 '등록된 식단 없음'으로 표시될 수 있습니다.";
   const cases = [
-    { kind: 'dormitory', page: undefined, name: '기숙사 식단', tags: '#해양대학교 #해양대기숙사' },
-    { kind: 'badaro', page: undefined, name: '승선생활관 식단', tags: '#해양대학교 #해양대승선생활관' },
-    { kind: 'combined', page: undefined, name: '학식 및 교직원 식당 식단', tags: '#해양대학교 #해양대학식 #해양대교직원식당' },
-    { kind: 'combined', page: 'snack', name: '학식 식단', tags: '#해양대학교 #해양대학식' },
-    { kind: 'combined', page: 'teacher', name: '교직원 식당 식단', tags: '#해양대학교 #해양대교직원식당' },
+    { kind: 'dormitory', page: undefined, tags: '#해양대학교 #해양대기숙사' },
+    { kind: 'badaro', page: undefined, tags: '#해양대학교 #해양대승선생활관' },
+    { kind: 'combined', page: undefined, tags: '#해양대학교 #해양대학식 #해양대교직원식당' },
+    { kind: 'combined', page: 'snack', tags: '#해양대학교 #해양대학식' },
+    { kind: 'combined', page: 'teacher', tags: '#해양대학교 #해양대교직원식당' },
   ] as const;
   for (const scenario of cases) {
     const selectedDates = scenario.kind === 'combined' ? dates.slice(0, 5) : dates;
     const initial = weeklyCaption(scenario.kind, selectedDates, scenario.page);
-    assert.equal(initial, `2026년 10월 5일 ~ 10월 ${scenario.kind === 'combined' ? 9 : 11}일 ${scenario.name}입니다.\n\n${delay}\n\n${scenario.tags}`);
+    assert.equal(initial, `${delay}\n\n${scenario.tags}`);
+    assert.doesNotMatch(initial, /20\d\d년|식단입니다\./);
     for (const [date, label] of [['2026-10-08', '10/8 (목)'], ['2026-10-11', '10/11 (일)'], ['2027-01-01', '1/1 (금)']] as const) {
       const repost = weeklyCaption(scenario.kind, selectedDates, scenario.page, date);
       assert.equal(repost, `${label}에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다.\n\n${delay}\n\n${scenario.tags}`);

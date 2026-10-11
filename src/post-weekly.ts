@@ -61,7 +61,8 @@ export async function postWeekly(data: WeeklyData, images: string[], force: bool
     }
     if (images.length !== (data.kind === 'combined' ? data.pages.length : 2)) throw new Error('주간 게시 이미지 수가 올바르지 않습니다.');
     const prepared = prepareWeekly(data, existing?.menuSnapshot, today, !!existing);
-    if (!prepared || weeklyMenuHash(prepared) !== menuHash || prepared.updatedOn !== data.updatedOn) {
+    if (!prepared || weeklyMenuHash(prepared) !== menuHash || prepared.updatedOn !== data.updatedOn
+      || JSON.stringify(prepared.menuChanges ?? []) !== JSON.stringify(data.menuChanges ?? [])) {
       throw new Error('게시 기준이 변경되었습니다. 다음 실행에서 이미지를 다시 생성해야 합니다.');
     }
     record.supersededMediaIds = existing ? [...new Set([...(existing.supersededMediaIds ?? []), existing.mediaId!])] : [];

@@ -13,6 +13,8 @@ export interface WeeklyData {
   monday: string;
   caption: string;
   updatedOn?: string;
+  /** Rendering-only differences from the last successful post; not stored in menu snapshots. */
+  menuChanges?: { kind: WeeklyPageKind; date: string; section: string; indexes: number[] }[];
   pages: WeeklyPage[];
 }
 export interface WeeklyPage {
@@ -50,21 +52,13 @@ export function weeklyRange(baseDate = seoulDate(), targetWeek?: string): Weekly
   return { monday, week: isoWeek(monday), dates: Array.from({ length: 7 }, (_, index) => addDays(monday, index)) };
 }
 export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPage?: WeeklyPageKind, updatedOn?: string): string {
-  const start = dates[0]!;
-  const end = dates.at(-1)!;
-  const [year, month, day] = start.split('-').map(Number);
-  const [endYear, endMonth, endDay] = end.split('-').map(Number);
-  const last = `${year !== endYear ? `${endYear}년 ` : ''}${endMonth}월 ${endDay}일`;
-  const name = onlyCombinedPage === 'snack' ? '학식 식단'
-    : onlyCombinedPage === 'teacher' ? '교직원 식당 식단'
-    : { combined: '학식 및 교직원 식당 식단', badaro: '승선생활관 식단', dormitory: '기숙사 식단' }[kind];
   const tag = onlyCombinedPage === 'snack' ? '해양대학식'
     : onlyCombinedPage === 'teacher' ? '해양대교직원식당'
     : { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
-  const intro = updatedOn
-    ? `${shortDate(updatedOn)} (${weekdayName(updatedOn)})에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다.`
-    : `${year}년 ${month}월 ${day}일 ~ ${last} ${name}입니다.`;
-  return `${intro}\n\n학교 측의 식단 업데이트가 늦을 경우, 식단표에 '등록된 식단 없음'으로 표시될 수 있습니다.\n\n#해양대학교 #${tag}`;
+  const intro = updatedOn ? `${shortDate(updatedOn)} (${weekdayName(updatedOn)})에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다.` : undefined;
+  const delayNotice = "학교 측의 식단 업데이트가 늦을 경우, 식단표에 '등록된 식단 없음'으로 표시될 수 있습니다.";
+  const tags = `#해양대학교 #${tag}`;
+  return intro ? `${intro}\n\n${delayNotice}\n\n${tags}` : `${delayNotice}\n\n${tags}`;
 }
 export function createWeeklyFetcher(deps = {
   dormitory: createResidenceMenuFetcher('dorm'), badaro: createResidenceMenuFetcher('badaro'), coop: fetchCoopDailyMenu,
@@ -90,6 +84,8 @@ export function createWeeklyFetcher(deps = {
         }
         const menu = await pending;
         pages[0]!.days.push({ date, sections: [
+          { key: 'western', label: '양식코너', items: menu.snackCorner.western },
+          { key: 'ramen', label: '라면코너', items: menu.snackCorner.ramen },
           { key: 'snack', label: '분식코너', items: menu.snackCorner.snack },
           { key: 'set-meal', label: '정식', items: menu.snackCorner.setMeal },
         ] });

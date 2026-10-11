@@ -1,7 +1,2 @@
-.snack .sections { top: 330px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: var(--snack-row-1, 1fr) var(--snack-row-2, 1fr); gap: 48px; column-gap: 48px; align-items: start; }
-/* Long unbroken menu names must shrink inside their column, not widen the grid. */
-.snack .meal, .snack .menu { min-width: 0; }
-.story.snack .night { display: none; }
-.snack h2 { font-size: 44px; letter-spacing: -2px; }
-.snack .meal-heading { gap: 24px; }
-.snack .menu { letter-spacing: -1.5px; }
+/* Each cafeteria row shares its height and typography across both corners. */
+.snack .meal { width: calc((100% - 32px) / 2); }

@@ -1,30 +1,13 @@
-:root { --paper: #f5f1e7; --ink: #183d44; --blue: #2259b1; --orange: #df713c; --moon: #d0dfa6; }
-* { box-sizing: border-box; }
-html, body { width: 1080px; height: 1920px; margin: 0; }
-body { font-family: Meal, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+html, body { width: 1080px; height: 1920px; }
 .story { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
-header { position: absolute; left: 48px; right: 48px; top: 164px; display: flex; align-items: baseline; justify-content: flex-start; gap: 24px; }
-h1 { font-size: 72px; font-weight: 760; letter-spacing: -2px; margin: 0; white-space: nowrap; }
-.date { font-size: 72px; font-weight: 400; text-align: left; white-space: nowrap; }
-.meal { display: flex; flex-direction: column; min-height: 0; }
-.sections { position: absolute; left: 48px; right: 48px; top: 330px; bottom: 48px; min-height: 0; }
-.meal-heading { flex: 0 0 78px; display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #183d4426; padding-bottom: 25px; }
-h2 { font-size: 60px; line-height: 51px; font-weight: 760; letter-spacing: -2px; margin: 0; }
-.symbol { width: 48px; height: 48px; display: inline-block; flex-shrink: 0; }
-.sun { border-radius: 50%; background: #df5e27; box-shadow: 0 0 0 7px #ed956450; width: 34px; height: 34px; margin: 7px; }
-.moon { border-radius: 50%; box-shadow: inset 14px -9px 0 0 var(--moon); transform: rotate(-15deg); }
-.menu { flex: none; min-height: 0; padding-top: 24px; padding-bottom: 12px; display: flex; flex-direction: column; gap: 16px; font-size: 72px; font-weight: 560; line-height: 1.2; letter-spacing: -1px; }
+header { position: absolute; left: 64px; right: 64px; top: 164px; display: flex; align-items: baseline; gap: 64px; }
+h1 { font-size: 72px; line-height: 1.2; font-weight: 800; letter-spacing: -2px; margin: 0; white-space: nowrap; }
+.date { font-size: 72px; line-height: 1.2; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.sections { position: absolute; left: 32px; right: 32px; top: 330px; bottom: 32px; }
+.meal { position: absolute; width: 100%; min-width: 0; border-radius: var(--radius); }
+.meal-heading { position: absolute; left: 32px; top: -18px; height: 36px; z-index: 1; }
+h2 { font-size: 28px; line-height: 36px; height: 36px; margin: 0; }
+.menu { position: absolute; left: 32px; right: 32px; top: 32px; display: flex; flex-direction: column; min-width: 0; font-size: 48px; font-weight: 500; line-height: 1.25; gap: 8px; letter-spacing: 0; }
 .dish { margin: 0; flex-shrink: 0; overflow-wrap: normal; word-break: keep-all; }
 .dish-part { white-space: nowrap; }
-.empty { opacity: .75; font-weight: 450 !important; }
-.night { position: absolute; inset: var(--night-start, 1038px) 0 0; background: var(--blue); }
-.dinner .meal-heading { border-color: #f5f1e738; }
-.story.dinner { background: var(--blue); color: var(--paper); }
-.story.dinner .night, .story.lunch .night, .story.breakfast .night { display: none; }
-.story.breakfast { background: #fff; }
-.story.full:not(.snack) { background: linear-gradient(to bottom, #fff 0 var(--morning-end, 40%), var(--paper) var(--morning-end, 40%) 100%); }
-.story.full:not(.snack) .sections { display: flex; flex-direction: column; gap: 48px; }
-.story.full:not(.snack) .meal { flex: none; }
-.story.full:not(.snack) .meal-heading { flex-basis: 66px; padding-bottom: 13px; }
-.story.full:not(.snack) h2 { font-size: 54px; }
-.story.full:not(.snack) .menu { padding-top: 24px; }
+.empty { opacity: .8; white-space: nowrap; font-size: min(1em, 36px); text-align: center; }

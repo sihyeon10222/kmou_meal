@@ -44,12 +44,16 @@ export function hasFutureAddition(data: WeeklyData, previous: WeeklyPage[], toda
 export function prepareWeekly(data: WeeklyData, previous: WeeklyPage[] | undefined, today: string, replacement: boolean): WeeklyData | undefined {
   const prepared = structuredClone(data);
   delete prepared.updatedOn;
+  delete prepared.menuChanges;
   if (replacement) prepared.updatedOn = today;
   if (previous) {
     prepared.pages = prepared.pages.map(page => ({ ...page, days: page.days.map(day => {
       if (day.date > today) return day;
       const old = previous.find(p => p.kind === page.kind)?.days.find(d => d.date === day.date);
-      return old ? structuredClone(old) : { ...day, sections: day.sections.map(section => ({ ...section, items: [] })) };
+      return { ...day, sections: day.sections.map(section => {
+        const saved = old?.sections.find(candidate => candidate.key === section.key);
+        return { ...section, items: saved ? structuredClone(saved.items) : [] };
+      }) };
     }) }));
     for (const old of previous) {
       if (!prepared.pages.some(page => page.kind === old.kind)) {
@@ -57,6 +61,32 @@ export function prepareWeekly(data: WeeklyData, previous: WeeklyPage[] | undefin
           ? structuredClone(day) : { ...day, sections: day.sections.map(section => ({ ...section, items: [] })) }) });
       }
     }
+  }
+  if (replacement && previous) {
+    const changes: NonNullable<WeeklyData['menuChanges']> = [];
+    const normalize = (item: string) => item.replace(/\s+/gu, ' ').trim();
+    for (const page of prepared.pages) for (const day of page.days) {
+      if (day.date <= today) continue;
+      for (const section of day.sections) {
+        const old = previous.find(candidate => candidate.kind === page.kind)?.days.find(candidate => candidate.date === day.date)
+          ?.sections.find(candidate => candidate.key === section.key);
+        const remaining = new Map<string, number>();
+        for (const item of old?.items ?? []) {
+          const key = normalize(item);
+          remaining.set(key, (remaining.get(key) ?? 0) + 1);
+        }
+        const indexes: number[] = [];
+        section.items.forEach((item, index) => {
+          const key = normalize(item);
+          if (!key) return;
+          const count = remaining.get(key) ?? 0;
+          if (count) remaining.set(key, count - 1);
+          else indexes.push(index);
+        });
+        if (indexes.length) changes.push({ kind: page.kind, date: day.date, section: section.key, indexes });
+      }
+    }
+    if (changes.length) prepared.menuChanges = changes;
   }
   return publishableWeekly(prepared);
 }
