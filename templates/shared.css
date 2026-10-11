@@ -5,8 +5,9 @@ h1 { font-size: 72px; line-height: 1.2; font-weight: 800; letter-spacing: -2px; 
 .date { font-size: 72px; line-height: 1.2; font-weight: 400; color: var(--muted); white-space: nowrap; }
 .sections { position: absolute; left: 32px; right: 32px; top: 330px; bottom: 32px; }
 .meal { position: absolute; width: 100%; min-width: 0; border-radius: var(--radius); }
-.meal-heading { position: absolute; left: 32px; top: -18px; height: 36px; z-index: 1; }
-h2 { font-size: 28px; line-height: 36px; height: 36px; margin: 0; }
+.meal-heading { position: absolute; left: 32px; top: -24px; height: 48px; z-index: 1; }
+h2 { font-size: 36px; line-height: 48px; height: 48px; margin: 0; }
+.story .meal-label { padding: 0 18px; border-radius: 24px; }
 .menu { position: absolute; left: 32px; right: 32px; top: 32px; display: flex; flex-direction: column; min-width: 0; font-size: 48px; font-weight: 500; line-height: 1.25; gap: 8px; letter-spacing: 0; }
 .dish { margin: 0; flex-shrink: 0; overflow-wrap: normal; word-break: keep-all; }
 .dish-part { white-space: nowrap; }

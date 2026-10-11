@@ -301,6 +301,7 @@ test('공통 카드 디자인의 실제 글자 여백·안전영역·분량 배�
             menu: rect(menu), font: style.fontSize, gap: style.gap, line: style.lineHeight,
             textColor: style.color, spacing: style.letterSpacing,
             emptyFonts: [...menu.querySelectorAll('.empty')].map(node => parseFloat(getComputedStyle(node).fontSize)),
+            labelFont: getComputedStyle(label).fontSize,
             labelBlur: getComputedStyle(label).backdropFilter, labelShadow: getComputedStyle(label).boxShadow,
             labelColor: getComputedStyle(label).backgroundColor,
             color: getComputedStyle(meal).backgroundColor, blur: getComputedStyle(meal).backdropFilter, shadow: getComputedStyle(meal).boxShadow, radius: getComputedStyle(meal).borderRadius,
@@ -335,6 +336,8 @@ test('공통 카드 디자인의 실제 글자 여백·안전영역·분량 배�
         close(meal.menu.left - meal.box.left, 32, 'menu left padding');
         close(meal.box.right - meal.menu.right, 32, 'menu right padding');
         close((meal.label.top + meal.label.bottom) / 2, meal.box.top, 'label on card boundary');
+        assert.equal(meal.labelFont, '36px');
+        close(meal.label.height, 48, 'larger story pill height');
         assert.ok(meal.box.bottom - meal.content.bottom >= 31);
         assert.ok(meal.content.bottom <= 1920 - 64 + 1);
         assert.ok(meal.label.bottom < meal.content.top && meal.fits && meal.noWrappedNames);
