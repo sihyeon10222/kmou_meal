@@ -22,10 +22,11 @@ const choice = { lunch: { index: 0, description: 'Spicy beef and mushroom stew' 
 const bubble = () => sharp(Buffer.from('<svg width="512" height="512"><rect width="512" height="512" fill="#ff00ff"/><circle cx="256" cy="230" r="180" fill="white" stroke="#7caeff" stroke-width="8"/><ellipse cx="256" cy="250" rx="80" ry="45" fill="#dc8f42"/><circle cx="256" cy="447" r="18" fill="white"/></svg>')).png().toBuffer();
 
 test('actual free space selects maximum decoration, shrinks to fit, and omits below minimum', () => {
-  const full = findArtPlacement({ ...layout, obstacles: [] }, ['lunch', 'dinner'])!;
+  const full = findArtPlacement({ ...layout, meals: { ...layout.meals, lunch: { ...layout.meals.lunch!, y: 700, height: 600 } }, obstacles: [] }, ['lunch', 'dinner'])!;
   assert.equal(full.width, ART_MAX_WIDTH);
-  assert.equal(full.bubbles.lunch!.width, 250 * 1.5);
-  assert.equal(full.bubbles.dinner!.width, 250 * 1.5);
+  assert.equal(full.character.width, 340 * 1.3);
+  assert.equal(full.bubbles.lunch!.width, 250 * 1.2);
+  assert.equal(full.bubbles.dinner!.width, 250 * 1.2);
   assert.ok(full.bubbles.lunch!.y > full.bubbles.dinner!.y);
   const narrow = { ...layout, obstacles: [{ x: 0, y: 0, width: 710, height: 1920 }] };
   const fit = findArtPlacement(narrow, ['lunch', 'dinner'])!;
@@ -37,6 +38,20 @@ test('actual free space selects maximum decoration, shrinks to fit, and omits be
     assert.ok(narrow.obstacles.every(obstacle => !intersects(part, obstacle, 16)));
   }
   assert.equal(findArtPlacement({ ...layout, obstacles: [{ x: 0, y: 0, width: 760, height: 1920 }] }, ['lunch', 'dinner']), undefined);
+});
+
+test('different restaurant card heights share the approved Badaro canvas anchor', () => {
+  const placements = [522, 700, 820].map(y => findArtPlacement({
+    ...layout, obstacles: [],
+    meals: { lunch: { x: 32, y, width: 1016, height: 1200 - y }, dinner: layout.meals.dinner },
+  }, ['lunch', 'dinner']));
+  for (const placement of placements) {
+    assert.deepEqual(placement, placements[0]);
+    assert.equal(placement!.character.x, 606);
+    assert.equal(placement!.character.y, 1223);
+    assert.equal(placement!.bubbles.lunch!.y, 951);
+    assert.equal(placement!.bubbles.dinner!.y, 861);
+  }
 });
 
 test('snack, breakfast-only, empty/closed meals and insufficient space make zero AI calls', async () => {

@@ -68,14 +68,15 @@ export function findArtPlacement(layout: StoryArtLayout, meals: ArtMeal[]): ArtP
   const bottom = Math.min(layout.height - 64, Math.max(...regions.map(r => r.y + r.height)) - 32);
   for (let width = ART_MAX_WIDTH; width >= ART_MIN_WIDTH; width -= 4) {
     const scale = width / ART_MAX_WIDTH;
-    const characterHeight = Math.round(340 * CHARACTER_RATIO * scale);
-    const height = Math.round(580 * scale) + characterHeight;
-    if (height > bottom - top) continue;
-    const preferred = meals.length === 2 && layout.meals.lunch
-      ? layout.meals.lunch.y + layout.meals.lunch.height - height * .7
-      : top + (bottom - top - height) / 2;
-    const positions: number[] = [Math.round(Math.max(top, Math.min(preferred, bottom - height)))];
-    for (let y = Math.ceil(top); y <= bottom - height; y += 8) positions.push(y);
+    const characterHeight = Math.round(442 * CHARACTER_RATIO * scale);
+    const height = Math.round(532 * scale) + characterHeight;
+    // Use the same canvas anchor as the approved Badaro preview for every restaurant.
+    // The group's transparent top does not need to be inside the menu card.
+    const minimumY = top - (meals.length === 2 ? 170 : 180) * scale;
+    if (height > bottom - minimumY) continue;
+    const preferred = meals.length === 2 ? 691 : minimumY + (bottom - minimumY - height) / 2;
+    const positions: number[] = [Math.round(Math.max(minimumY, Math.min(preferred, bottom - height)))];
+    for (let y = Math.ceil(minimumY); y <= bottom - height; y += 8) positions.push(y);
     positions.sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
     for (const y of positions) {
       // The supplied example uses the right edge; small horizontal shifts can avoid long dishes.
@@ -85,11 +86,11 @@ export function findArtPlacement(layout: StoryArtLayout, meals: ArtMeal[]): ArtP
           x: Math.round(x + dx * scale), y: Math.round(y + dy * scale),
           width: Math.round(w * scale), height: Math.round(h * scale),
         });
-        const character = box(270, 580, 340, 340 * CHARACTER_RATIO);
+        const character = box(168, 532, 442, 442 * CHARACTER_RATIO);
         const bubbles: Partial<Record<ArtMeal, ArtRect>> = {};
         meals.forEach(meal => { bubbles[meal] = meals.length === 1
-          ? box(220, 180, 390, 462)
-          : meal === 'lunch' ? box(0, 300, 375, 447) : box(235, 0, 375, 447); });
+          ? box(259, 180, 312, 372)
+          : meal === 'lunch' ? box(38, 260, 300, 358) : box(273, 170, 300, 358); });
         const parts = [character, ...Object.values(bubbles)];
         if (parts.every(part => part.x >= 32 && part.y >= top && part.x + part.width <= layout.width - 32
           && part.y + part.height <= bottom + 1)
