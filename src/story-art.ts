@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp, { type OverlayOptions } from 'sharp';
+import { renderThoughtBubble } from './story-art-bubble.js';
 import { cloudflareConfig, createFoodAi, FOOD_IMAGE_MODEL, FOOD_SELECTION_MODEL, type FoodAi } from './cloudflare-ai.js';
 import { safeError } from './config.js';
 import type { StoryRenderData } from './story-data.js';
@@ -171,7 +172,7 @@ export function createStoryArt(options: StoryArtOptions): StoryArtDecorator {
           }
           const bubble = await transparentBubble(raw);
           const box = placement.bubbles[dish.meal]!;
-          composites.push({ input: await sharp(bubble).resize(box.width, box.height, { fit: 'contain', background: '#00000000' }).png().toBuffer(), left: box.x, top: box.y });
+          composites.push({ input: await renderThoughtBubble(bubble, dish.meal, box, placement.character), left: box.x, top: box.y });
         }
         const box = placement.character;
         composites.push({ input: await sharp(characterImage).resize(box.width, box.height, { fit: 'contain', background: '#00000000' }).png().toBuffer(), left: box.x, top: box.y });

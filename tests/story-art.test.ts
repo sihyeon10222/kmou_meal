@@ -11,6 +11,7 @@ import { createStoryRenderer } from '../src/render-story.js';
 import { storyDesignData } from './fixtures/story-design.js';
 import { parseCliOptions } from '../src/cli-options.js';
 import { safeError } from '../src/config.js';
+import { cloudBody, renderThoughtBubble } from '../src/story-art-bubble.js';
 
 const layout: StoryArtLayout = {
   width: 1080, height: 1920,
@@ -65,6 +66,31 @@ test('chroma removal preserves opaque bubble whites; invalid backgrounds are rej
   assert.ok(data.some((value, index) => index % 4 === 3 && value === 0));
   assert.ok(data.some((value, index) => index % 4 === 3 && value === 255));
   await assert.rejects(transparentBubble(await sharp({ create: { width: 512, height: 512, channels: 3, background: 'white' } }).png().toBuffer()));
+});
+
+test('thought trails replace generated dots with three separated shrinking outlined circles at every size', async () => {
+  const input = await transparentBubble(await bubble());
+  const body = await sharp(await cloudBody(input)).metadata();
+  assert.ok(body.height! < 400, 'detached generated dot is removed');
+  for (const size of [150, 250, 260]) for (const meal of ['lunch', 'dinner'] as const) {
+    const output = await renderThoughtBubble(input, meal, { x: 500, y: 600, width: size, height: size },
+      { x: meal === 'lunch' ? 580 : 300, y: 900, width: 460, height: 545 });
+    const { data, info } = await sharp(output).raw().toBuffer({ resolveWithObject: true });
+    const bands: { top: number; bottom: number }[] = [];
+    let active = false;
+    for (let y = 0; y < size; y++) {
+      let occupied = false;
+      for (let x = 0; x < size; x++) if (data[(y * size + x) * 4 + 3]! > 16) occupied = true;
+      if (occupied && !active) bands.push({ top: y, bottom: y });
+      if (occupied) bands.at(-1)!.bottom = y;
+      active = occupied;
+    }
+    assert.equal(info.width, size); assert.equal(info.height, size);
+    assert.equal(bands.length, 4, 'one cloud and three detached circles');
+    const heights = bands.slice(1).map(band => band.bottom - band.top);
+    assert.ok(heights[0]! > heights[1]! && heights[1]! > heights[2]!);
+    assert.ok(bands.at(-1)!.bottom < size - 1, 'last circle remains inside the checked rectangle');
+  }
 });
 
 test('successful images and selection are reused offline; one-meal context reuses the same dish image', async () => {
