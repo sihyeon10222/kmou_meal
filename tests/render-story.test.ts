@@ -341,8 +341,8 @@ test('공통 카드 디자인의 실제 글자 여백·안전영역·분량 배�
         assert.ok(meal.box.bottom - meal.content.bottom >= 31);
         assert.ok(meal.content.bottom <= 1920 - 64 + 1);
         assert.ok(meal.content.top - meal.label.bottom >= 39 && meal.fits && meal.noWrappedNames);
-        assert.equal(meal.radius, '32px');
-        assert.equal(meal.blur, 'none'); assert.equal(meal.shadow, 'none');
+        assert.equal(meal.radius, '48px');
+        assert.equal(meal.blur, 'none'); assert.notEqual(meal.shadow, 'none'); assert.match(meal.shadow, /inset/);
         assert.match(meal.labelBlur, /blur\(3px\)/); assert.notEqual(meal.labelShadow, 'none');
         assert.equal(meal.labelColor, 'rgba(255, 255, 255, 0.22)');
         assert.ok(parseFloat(meal.font) <= (data.sections.every(section => !section.items.length) ? 36 : 48));

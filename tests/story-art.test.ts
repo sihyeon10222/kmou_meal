@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { createFoodAi, cloudflareConfig, FOOD_IMAGE_MODEL, FOOD_SELECTION_MODEL } from '../src/cloudflare-ai.js';
-import { artMenus, artMode, createStoryArt, transparentBubble, validateSelection } from '../src/story-art.js';
+import { artMenus, artMode, createStoryArt, transparentBubble, validateSelection, foodPrompt } from '../src/story-art.js';
 import { ART_MAX_WIDTH, ART_MIN_WIDTH, bubbleCollisionParts, findArtPlacement, intersects, type StoryArtLayout } from '../src/story-art-layout.js';
 import { createStoryRenderer } from '../src/render-story.js';
 import { storyDesignData } from './fixtures/story-design.js';
@@ -115,6 +115,21 @@ test('thought trails replace generated dots with three separated shrinking outli
   }
 });
 
+test('heading and sun/moon remain pixel-identical when the food changes', async () => {
+  const foods = await Promise.all(['#E2933D', '#79B56D'].map(fill => sharp(Buffer.from(
+    `<svg width="260" height="166"><ellipse cx="130" cy="83" rx="115" ry="70" fill="${fill}"/></svg>`,
+  )).png().toBuffer()));
+  const box = { x: 588, y: 951, width: 253, height: 302 };
+  const character = { x: 676, y: 1223, width: 372, height: 441 };
+  for (const meal of ['lunch', 'dinner'] as const) {
+    const rendered = await Promise.all(foods.map(food => renderThoughtBubble(food, meal, box, character)));
+    const headings = await Promise.all(rendered.map(image => sharp(image).extract({ left: 0, top: 0, width: 253, height: 90 }).raw().toBuffer()));
+    assert.deepEqual(headings[0], headings[1]);
+    assert.notDeepEqual(rendered[0], rendered[1]);
+  }
+  assert.match(foodPrompt({ meal: 'lunch', item: '생선까스', description: 'A golden fish cutlet' }), /No accompanying rice.*sun, moon.*text/);
+});
+
 test('successful images and selection are reused offline; one-meal context reuses the same dish image', async () => {
   const cacheDir = await mkdtemp(join(tmpdir(), 'story-art-'));
   let selections = 0, images = 0;
@@ -175,6 +190,7 @@ test('missing mascot fails decoration before any AI call, without an unhandled r
 });
 
 test('Cloudflare sends authenticated JSON selection and 512px multipart FLUX requests, without the mascot', async () => {
+  assert.equal(FOOD_IMAGE_MODEL, '@cf/black-forest-labs/flux-2-klein-9b');
   const requests: { url: string; init: RequestInit }[] = [];
   const bytes = await bubble();
   const ai = createFoodAi({ accountId: 'a'.repeat(32), apiToken: 'test-token' }, async (url, init) => {

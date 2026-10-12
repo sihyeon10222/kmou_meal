@@ -4,7 +4,7 @@
   --muted: #375a68;
   --blue: #164d86;
   --changed: #ff5f5f;
-  --radius: 32px;
+  --radius: 48px;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Meal, MealFallback, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
@@ -12,6 +12,11 @@ body { margin: 0; font-family: Meal, MealFallback, sans-serif; color: var(--ink)
 /* One solid surface spans every weekday in a meal row. */
 .meal-surface, .meal {
   background: #dae9ff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / .65),
+    inset 0 -1px 0 rgb(18 45 78 / .10),
+    0 2px 4px rgb(18 45 78 / .06),
+    0 8px 16px -4px rgb(18 45 78 / .16);
 }
 .meal-surface.breakfast, .meal.breakfast { background: #fff; }
 .meal-surface.dinner, .meal.dinner { background: #2259b1; }

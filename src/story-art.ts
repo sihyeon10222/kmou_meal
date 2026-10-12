@@ -23,7 +23,7 @@ export interface StoryArtDecorator {
 export interface StoryArtOptions {
   mode: StoryArtMode; cacheDir?: string; size?: number; ai?: FoodAi; characterPath?: string;
 }
-const STYLE_VERSION = 'food-thought-bubble-v6-complete';
+const STYLE_VERSION = 'food-only-v7-fixed-heading';
 const SELECTION_VERSION = 'main-dish-v2-visual';
 const DEFAULT_CHARACTER = fileURLToPath(new URL('../assets/illustrations/haeyangi.png', import.meta.url));
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -68,9 +68,8 @@ export function validateSelection(value: unknown, menus: Partial<Record<ArtMeal,
 }
 
 export function foodPrompt(dish: SelectedDish): string {
-  const lunch = dish.meal === 'lunch';
   const description = dish.description.replace(/\b(?:with a side of|alongside|accompanied by|served alongside)\b[\s\S]*$/i, '').trim();
-  return `A cute polished Korean food thought-bubble sticker. ONE big white cloud-shaped bubble with a rounded scalloped ${lunch ? 'soft golden yellow' : 'soft sky blue'} outline. INSIDE THE CLOUD at the top, a small ${lunch ? 'golden sun' : 'yellow crescent moon'} icon beside the heading ${lunch ? 'Lunch' : 'Dinner'} in large readable rounded dark-blue handwritten letters. This ONE English word is the ONLY text anywhere in the entire image. No quotation marks, no Korean characters, no dish names, no subtitle, no other letters or writing. INSIDE THE SAME CLOUD directly below this heading, an appetizing illustration of ${description}. Draw ONLY this dish in one bowl or plate; omit accompanying rice, kimchi and side dishes. The title, icon and food form one balanced composition enclosed together in this single white cloud. The food plate occupies about 60 percent of the cloud width, with generous even WHITE PADDING between the entire plate and every edge of the cloud, and a moderate clear gap under the title. All food stays inside the bubble. Cute cartoon with clean dark outlines, glossy warm food colors and gentle soft shading. Two small separate white thought circles trail down from the bottom center of the cloud. The whole sticker is fully visible and centered with margin on every side of the square. No mascot, no people, no watermark, no frame. Outside the cloud and circles is perfectly flat solid vivid magenta #FF00FF filling all four canvas edges. The inside of the cloud is pure white.`;
+  return `A cute polished Korean food illustration of ${description}. Draw ONLY this ONE dish in one bowl or plate, with clean dark outlines, appetizing colors and gentle glossy shading. No accompanying rice, side dishes, mascot, people, cloud, speech bubble, thought bubble, sun, moon, stars, icons, text, letters, labels, writing or watermark. The entire dish and plate must be fully visible, centered with generous even margin on all sides. The dish fills about 70 percent of the square. Outside the dish and plate is perfectly flat solid vivid magenta #FF00FF filling all four canvas edges. No ground shadow outside the plate.`;
 }
 
 /** FLUX returns RGB. Remove the explicit chroma backdrop while retaining the white bubble. */

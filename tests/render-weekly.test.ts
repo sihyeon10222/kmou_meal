@@ -249,7 +249,7 @@ test('all four restaurants keep balanced margins and shared meal rows in every d
           const last = layout.days.at(-1)!.cells[index]!;
           close(surface.top, first.top, 'surface top'); close(surface.height, first.height, 'surface height');
           close(surface.left, first.left, 'surface left'); close(surface.right, last.right, 'one continuous surface');
-          assert.equal(surface.radius, '32px'); assert.equal(surface.blur, 'none'); assert.equal(surface.shadow, 'none');
+          assert.equal(surface.radius, '48px'); assert.equal(surface.blur, 'none'); assert.notEqual(surface.shadow, 'none'); assert.match(surface.shadow, /inset/);
           assert.equal(surface.color, kind === 'snack' ? 'rgb(218, 233, 255)' : ['rgb(255, 255, 255)', 'rgb(218, 233, 255)', 'rgb(34, 89, 177)'][index]);
         });
         assert.equal(Boolean(layout.notice), scenario === 'repost');
@@ -354,7 +354,7 @@ test('replacement colors only changed dishes red, matching the update notice', a
   } finally { await browser.close(); await rm(dir, { recursive: true, force: true }); }
 });
 
-test('단색 디자인의 둥근 폰트는 HTML에 내장되고 알약만 블러와 그림자를 유지한다', async () => {
+test('단색 디자인의 둥근 폰트는 HTML에 내장되고 알약은 블러와 그림자를 유지한다', async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
