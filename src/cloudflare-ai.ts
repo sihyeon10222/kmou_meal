@@ -1,7 +1,6 @@
 export const FOOD_IMAGE_MODEL = '@cf/black-forest-labs/flux-2-klein-9b';
 export const FOOD_SELECTION_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 export interface CloudflareConfig { accountId: string; apiToken: string }
-export interface FoodChoice { index: number; description: string }
 export interface FoodAi {
   select(menus: Record<string, string[]>): Promise<unknown>;
   image(prompt: string, size: number, seed: number): Promise<Buffer>;

@@ -1,7 +1,7 @@
 import { seoulDate, validateDate } from './dates.js';
 import { createResidenceMenuFetcher } from './fetch-menu.js';
 import { fetchCoopDailyMenu } from './fetch-coop-menu.js';
-import type { MenuSection } from './story-data.js';
+import { mealSections, type MenuSection } from './story-data.js';
 
 export const WEEKLY_KINDS = ['combined', 'badaro', 'dormitory'] as const;
 export type WeeklyKind = typeof WEEKLY_KINDS[number];
@@ -51,7 +51,7 @@ export function weeklyRange(baseDate = seoulDate(), targetWeek?: string): Weekly
   }
   return { monday, week: isoWeek(monday), dates: Array.from({ length: 7 }, (_, index) => addDays(monday, index)) };
 }
-export function weeklyCaption(kind: WeeklyKind, dates: string[], onlyCombinedPage?: WeeklyPageKind, updatedOn?: string): string {
+export function weeklyCaption(kind: WeeklyKind, _dates: string[], onlyCombinedPage?: WeeklyPageKind, updatedOn?: string): string {
   const tag = onlyCombinedPage === 'snack' ? '해양대학식'
     : onlyCombinedPage === 'teacher' ? '해양대교직원식당'
     : { combined: '해양대학식 #해양대교직원식당', badaro: '해양대승선생활관', dormitory: '해양대기숙사' }[kind];
@@ -72,10 +72,7 @@ export function createWeeklyFetcher(deps = {
     for (const date of dates) {
       if (kind !== 'combined') {
         const menu = await deps[kind](date);
-        const sections = ['breakfast', 'lunch', 'dinner'].map(key => ({
-          key, label: key[0]!.toUpperCase() + key.slice(1), items: menu?.[key as 'breakfast' | 'lunch' | 'dinner'] ?? [],
-        }));
-        pages[0]!.days.push({ date, sections });
+        pages[0]!.days.push({ date, sections: mealSections(menu) });
       } else {
         let pending = coop.get(date);
         if (!pending) {
@@ -89,9 +86,7 @@ export function createWeeklyFetcher(deps = {
           { key: 'snack', label: '분식코너', items: menu.snackCorner.snack },
           { key: 'set-meal', label: '정식', items: menu.snackCorner.setMeal },
         ] });
-        pages[1]!.days.push({ date, sections: ['breakfast', 'lunch', 'dinner'].map(key => ({
-          key, label: key[0]!.toUpperCase() + key.slice(1), items: menu.staffRestaurant[key as 'breakfast' | 'lunch' | 'dinner'],
-        })) });
+        pages[1]!.days.push({ date, sections: mealSections(menu.staffRestaurant) });
       }
     }
     return { kind, week: range.week, monday: range.monday, pages, caption: weeklyCaption(kind, dates) };

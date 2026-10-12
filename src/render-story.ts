@@ -4,7 +4,8 @@ export { escapeHtml } from './render-assets.js';
 import { resolve } from 'node:path';
 import { shortDate, weekdayName } from './weekly-data.js';
 import { layoutStory } from './layout-story.js';
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Page } from 'playwright';
+import { createRenderBrowser } from './render-browser.js';
 import type { MenuSection, StoryRenderData } from './story-data.js';
 import type { Restaurant } from './story-modes.js';
 import { measureStoryArtLayout } from './story-art-layout.js';
@@ -71,7 +72,7 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
 
 /** Reuses one browser and template snapshot for sequential Stories in a batch. */
 export function createStoryRenderer(options: { art?: StoryArtDecorator } = {}): StoryRenderer {
-  let browser: Promise<Browser> | undefined;
+  const browser = createRenderBrowser('Story');
   let assets: Promise<TemplateAssets> | undefined;
   const layouts = new Map<Restaurant, Promise<string>>();
   let closed = false;
@@ -90,19 +91,15 @@ export function createStoryRenderer(options: { art?: StoryArtDecorator } = {}): 
       // Keep the exact input even when layout validation rejects the image.
       await writeFile(`${stem}.menu.json`, JSON.stringify(data, null, 2));
 
-      browser ??= chromium.launch({ headless: true }).catch(error => {
-        browser = undefined;
-        throw error;
-      });
-      const page = await (await browser).newPage({ viewport: STORY_SIZE, deviceScaleFactor: 1 });
+      const page = await browser.newPage({ viewport: STORY_SIZE, deviceScaleFactor: 1 });
       try {
         await page.setContent(html, { waitUntil: 'load' });
         await fitMenusAndValidateLayout(page);
         await writeFile(`${stem}.html`, await page.content());
-        const base = await page.screenshot({ type: 'png' });
         // Optional decoration is isolated from the validated, publishable base Story.
         let decorated: Buffer | undefined;
         if (options.art) {
+          const base = await page.screenshot({ type: 'png' });
           try {
             const result = await options.art.decorate(data, await measureStoryArtLayout(page), base);
             await writeFile(`${stem}.art.json`, JSON.stringify(result.report, null, 2));
@@ -129,9 +126,7 @@ export function createStoryRenderer(options: { art?: StoryArtDecorator } = {}): 
     },
     async close() {
       closed = true;
-      const activeBrowser = browser;
-      browser = undefined;
-      if (activeBrowser) await (await activeBrowser).close();
+      await browser.close();
     },
   };
 }

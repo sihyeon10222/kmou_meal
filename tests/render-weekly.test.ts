@@ -58,7 +58,7 @@ for (const kind of ['combined', 'badaro', 'dormitory'] as const) {
         assert.equal(meta.width, 2160); assert.equal(meta.height, 1440);
         // Both files must come from exact halves of the same master, not independent renders.
         for (const [index, path] of result.images.entries()) {
-          const expected = await sharp(result.master).extract({ left: index * 1080, top: 0, width: 1080, height: 1440 }).jpeg({ quality: 94, chromaSubsampling: '4:4:4' }).toBuffer();
+          const expected: Buffer = await sharp(result.master).extract({ left: index * 1080, top: 0, width: 1080, height: 1440 }).jpeg({ quality: 94, chromaSubsampling: '4:4:4' }).toBuffer();
           assert.deepEqual(await readFile(path), expected);
         }
         const browser = await chromium.launch({ headless: true });

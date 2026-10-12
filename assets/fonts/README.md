@@ -13,13 +13,6 @@ See `NPSfont-LICENSE.txt` for the usage summary and the
 remains bundled as a fallback for characters outside NationalPension's glyph set.
 Its license is in `Pretendard-LICENSE.txt`. All fonts are embedded locally in the generated HTML.
 
-## Previous fonts
-
-`NanumSquareRoundR.woff2`, `NanumSquareRoundB.woff2`, and `NanumSquareRoundEB.woff2`
-were downloaded unchanged from `https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareRound/`.
-Distributed under SIL OFL 1.1; see `NanumSquareRound-LICENSE.txt` and
-[NAVER's license notice](https://help.naver.com/service/30016/contents/18088?osType=PC&lang=ko).
-
-`NotoSansKR.ttf` is the variable font from [google/fonts](https://github.com/google/fonts/tree/main/ofl/notosanskr).
-Distributed under the SIL Open Font License 1.1; see `OFL.txt`.
-The bundled font makes Korean rendering independent of the runner's installed fonts.
+The former NanumSquareRound and NotoSansKR fonts are no longer bundled: neither
+renderers nor asset-generation scripts use them. The four active font files above
+make Korean rendering independent of the runner's installed fonts.

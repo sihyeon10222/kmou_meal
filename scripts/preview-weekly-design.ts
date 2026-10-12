@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { createStoryRenderer } from '../src/render-story.js';
 import { createStoryArt } from '../src/story-art.js';
 import { storyDesignData, storyDesignScenarios } from '../tests/fixtures/story-design.js';
-import { renderWeekly } from '../src/render-weekly.js';
+import { createWeeklyRenderer } from '../src/render-weekly.js';
 import { designKinds, weeklyDesignData } from '../tests/fixtures/weekly-design.js';
 
 const root = resolve('output/weekly-redesign');
@@ -14,25 +14,28 @@ const labels = { normal: '일반 식단', empty: '빈 식단', repost: '재게�
 const sections: string[] = [];
 const revision = Date.now();
 await mkdir(root, { recursive: true });
-for (const scenario of scenarios) {
-  const cards: string[] = [];
-  const previews: { input: Buffer; left: number; top: number }[] = [];
-  const captions: string[] = [];
-  for (const [index, kind] of designKinds.entries()) {
-    const data = weeklyDesignData(kind, scenario);
-    const result = await renderWeekly(data, resolve(root, scenario));
-    const main = result.master ?? result.images[0]!;
-    const path = (file: string) => `${relative(root, file)}?v=${revision}`;
-    const panorama = Boolean(result.master);
-    const thumbnail = await sharp(main).resize(panorama ? 1080 : 528, panorama ? 720 : 704).png().toBuffer();
-    previews.push({ input: thumbnail, left: index < 2 ? 24 : 24 + (index - 2) * 552, top: index < 2 ? 24 + index * 744 : 1512 });
-    cards.push(`<article><h3>${names[kind]}</h3><a href="${path(main)}"><img src="${path(main)}" alt="${names[kind]} ${labels[scenario]} ${panorama ? '전체 원본' : ''}"></a>${panorama ? `<div class="halves">${result.images.map((file, i) => `<a href="${path(file)}"><span>${i + 1}번 이미지</span><img src="${path(file)}" alt="${names[kind]} ${i + 1}번 분할 이미지"></a>`).join('')}</div>` : ''}<details><summary>본문</summary><pre>${data.caption}</pre></details></article>`);
-    captions.push(`[${names[kind]}]\n${data.caption}`);
+const weeklyRenderer = createWeeklyRenderer();
+try {
+  for (const scenario of scenarios) {
+    const cards: string[] = [];
+    const previews: { input: Buffer; left: number; top: number }[] = [];
+    const captions: string[] = [];
+    for (const [index, kind] of designKinds.entries()) {
+      const data = weeklyDesignData(kind, scenario);
+      const result = await weeklyRenderer.render(data, resolve(root, scenario));
+      const main = result.master ?? result.images[0]!;
+      const path = (file: string) => `${relative(root, file)}?v=${revision}`;
+      const panorama = Boolean(result.master);
+      const thumbnail = await sharp(main).resize(panorama ? 1080 : 528, panorama ? 720 : 704).png().toBuffer();
+      previews.push({ input: thumbnail, left: index < 2 ? 24 : 24 + (index - 2) * 552, top: index < 2 ? 24 + index * 744 : 1512 });
+      cards.push(`<article><h3>${names[kind]}</h3><a href="${path(main)}"><img src="${path(main)}" alt="${names[kind]} ${labels[scenario]} ${panorama ? '전체 원본' : ''}"></a>${panorama ? `<div class="halves">${result.images.map((file, i) => `<a href="${path(file)}"><span>${i + 1}번 이미지</span><img src="${path(file)}" alt="${names[kind]} ${i + 1}번 분할 이미지"></a>`).join('')}</div>` : ''}<details><summary>본문</summary><pre>${data.caption}</pre></details></article>`);
+      captions.push(`[${names[kind]}]\n${data.caption}`);
+    }
+    await sharp({ create: { width: 1128, height: 2240, channels: 3, background: '#dfe5ee' } }).composite(previews).png().toFile(resolve(root, `${scenario}-overview.png`));
+    await writeFile(resolve(root, scenario, 'captions.txt'), captions.join('\n\n\n'));
+    sections.push(`<section id="${scenario}"><h2>${labels[scenario]}</h2>${cards.join('')}</section>`);
   }
-  await sharp({ create: { width: 1128, height: 2240, channels: 3, background: '#dfe5ee' } }).composite(previews).png().toFile(resolve(root, `${scenario}-overview.png`));
-  await writeFile(resolve(root, scenario, 'captions.txt'), captions.join('\n\n\n'));
-  sections.push(`<section id="${scenario}"><h2>${labels[scenario]}</h2>${cards.join('')}</section>`);
-}
+} finally { await weeklyRenderer.close(); }
 const storySections: string[] = [];
 // Design iterations only reuse illustrations; they never silently spend generation credits.
 const renderer = createStoryRenderer({ art: createStoryArt({ mode: 'cache' }) });

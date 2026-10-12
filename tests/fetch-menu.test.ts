@@ -3,6 +3,44 @@ import { test } from 'node:test';
 import { fetchDailyMenu, fetchBadaroMenu, createResidenceMenuFetcher, seoulDate } from '../src/fetch-menu.js';
 import { fastMenuRetries } from './helpers/menu-retries.js';
 
+test('여러 날짜의 동일 순번·부분 수정·공백 메뉴는 기존 안정 정렬과 같은 값을 선택한다', async t => {
+  let seed = 1729;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed; };
+  const dates = Array.from({ length: 31 }, (_, day) => `2026/10/${String(day + 1).padStart(2, '0')}`);
+  const values = [null, undefined, '', ' \r\n\t ', ' 밥\r\n국\n김치 ', '수정 메뉴\r반찬'];
+  const rows = Array.from({ length: 600 }, () => ({
+    dietSeq: random() % 10 - 5, dietDate: dates[random() % dates.length]!,
+    dietAditCn1: values[random() % values.length],
+    dietAditCn2: values[random() % values.length],
+    dietAditCn3: values[random() % values.length],
+  }));
+  const mock = t.mock.method(globalThis, 'fetch', async () => Response.json(rows));
+  const fetcher = createResidenceMenuFetcher('dorm');
+  const clean = (value: string | null | undefined) => (value ?? '').split(/\r\n|\n|\r/).map(line => line.trim()).filter(Boolean);
+  for (const date of dates) {
+    const sorted = rows.filter(row => row.dietDate === date).sort((a, b) => b.dietSeq - a.dietSeq);
+    const latest = (key: 'dietAditCn1' | 'dietAditCn2' | 'dietAditCn3') => clean(sorted.find(row => clean(row[key]).length)?.[key]);
+    assert.deepEqual(await fetcher(date.replaceAll('/', '-')), {
+      date, breakfast: latest('dietAditCn1'), lunch: latest('dietAditCn2'), dinner: latest('dietAditCn3'),
+    });
+  }
+  assert.equal(mock.mock.callCount(), 1);
+});
+
+test('같은 순번은 먼저 나온 유효한 끼니를 유지하고 비표준 응답 날짜는 사용하지 않는다', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json([
+    { dietSeq: 7, dietDate: '2026/10/05', dietAditCn1: '첫 조식', dietAditCn2: ' \n ' },
+    { dietSeq: 7, dietDate: '2026/10/05', dietAditCn1: '두 번째 조식', dietAditCn2: '첫 유효 중식' },
+    { dietSeq: 8, dietDate: '2026-10-05', dietAditCn1: '다른 날짜 형식' },
+    { dietSeq: 8, dietDate: '2026-10-06', dietAditCn1: '다른 날짜 형식' },
+  ]));
+  const fetcher = createResidenceMenuFetcher('dorm');
+  const expected = { date: '2026/10/05', breakfast: ['첫 조식'], lunch: ['첫 유효 중식'], dinner: [] };
+  assert.deepEqual(await fetcher('2026-10-05'), expected);
+  assert.deepEqual(await fetchDailyMenu('2026-10-05'), expected);
+  assert.equal(await fetcher('2026-10-06'), null);
+});
+
 test('승선생활관은 badaro API와 sys_id로 세 끼를 조회한다', async t => {
   t.mock.method(globalThis, 'fetch', async (url: unknown, options: RequestInit) => {
     assert.equal(url, 'https://www.kmou.ac.kr/badaro/di/diet/selectDietList.do');

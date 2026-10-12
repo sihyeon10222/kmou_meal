@@ -21,4 +21,4 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: npm run typecheck && npm test && npm run build
+      - run: npm run typecheck && npm run lint && npm test && npm run build

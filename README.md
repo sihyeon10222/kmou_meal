@@ -224,13 +224,20 @@ cron-job.org → GitHub Actions → KMOU API / HTML 조회
 - `publishing-services.ts`: 게시 서비스 지연 초기화
 - `fetch-menu-text.ts`: 공통 조회 재시도
 - `render-assets.ts`: 공통 폰트·HTML 처리
+- `render-browser.ts`: 지연 실행·재연결·종료를 관리하는 공통 Chromium 수명 관리
+- `render-weekly.ts`: 배치 안에서 브라우저를 재사용하고 이미지마다 독립된 페이지를 해제
 - `.github/actions/setup`: 공통 Node.js·Chromium 설치
 
 ```bash
 npm run typecheck
+npm run lint
 npm test
 npm run build
 ```
+
+타입 검사는 `src/`뿐 아니라 `scripts/`와 `tests/`에도 적용하며, 빌드 출력은 기존처럼 `src/`만 `dist/`에 생성합니다. CI와 두 게시 workflow도 같은 검증을 실행합니다.
+
+`npm run benchmark -- current`는 고정 식단으로 주간 전체·장식 없는 Story 4장·모의 식단 조회를 측정하고 `output/benchmark/current/results.json`에 시간·브라우저/캡처 횟수·이미지 SHA-256을 저장합니다. 한 번 준비 실행 후 다섯 번의 중앙값을 사용하며 외부 조회·업로드·AI 생성을 실행하지 않습니다. 이전 결과와 이미지 바이트까지 비교하려면 `npm run benchmark -- current 경로/before/results.json`으로 실행합니다. [전체 코드 분석과 최적화 결과](docs/OPTIMIZATION_AUDIT_2026-10-12.md)에 변경 근거와 측정 조건을 기록했습니다.
 
 `npm run fetch-menu -- YYYY-MM-DD`는 기숙사 조회 진단 전용입니다.
 

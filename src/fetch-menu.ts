@@ -43,7 +43,9 @@ export async function fetchBadaroMenu(date: Date | string = new Date()): Promise
 
 async function fetchResidenceMenu(site: 'dorm' | 'badaro', date: Date | string): Promise<DailyMenu | null> {
   const requestDate = typeof date === 'string' ? validateDate(date) : seoulDate(date);
-  return menuForDate(await fetchResidenceRows(site, requestDate), requestDate);
+  const targetDate = requestDate.replaceAll('-', '/');
+  const rows = await fetchResidenceRows(site, requestDate);
+  return menuFromRows(rows.filter(row => row.dietDate === targetDate), requestDate);
 }
 
 /** Reuse only dates explicitly present in a response, within this one execution. */
@@ -53,13 +55,20 @@ export function createResidenceMenuFetcher(site: 'dorm' | 'badaro') {
     const requestDate = typeof date === 'string' ? validateDate(date) : seoulDate(date);
     if (!menus.has(requestDate)) {
       const rows = await fetchResidenceRows(site, requestDate);
+      const byDate = new Map<string, RawDiet[]>();
+      for (const row of rows) {
+        const group = byDate.get(row.dietDate);
+        if (group) group.push(row);
+        else byDate.set(row.dietDate, [row]);
+      }
       // A response may span weeks or months. Absent dates still get their own request;
       // absence from another date's response must not be treated as an empty menu.
-      for (const returnedDate of new Set(rows.map(row => row.dietDate))) {
+      for (const returnedDate of byDate.keys()) {
         const key = returnedDate.replaceAll('/', '-');
-        menus.set(key, menuForDate(rows, key));
+        // Preserve exact slash-form matching even if the source returns other formats.
+        menus.set(key, menuFromRows(byDate.get(key.replaceAll('-', '/')) ?? [], key));
       }
-      menus.set(requestDate, menuForDate(rows, requestDate));
+      if (!menus.has(requestDate)) menus.set(requestDate, null);
     }
     return structuredClone(menus.get(requestDate)!);
   };
@@ -88,14 +97,18 @@ async function fetchResidenceRows(site: 'dorm' | 'badaro', requestDate: string):
   return data;
 }
 
-function menuForDate(data: RawDiet[], requestDate: string): DailyMenu | null {
+function menuFromRows(candidates: RawDiet[], requestDate: string): DailyMenu | null {
   const targetDate = requestDate.replaceAll('-', '/');
-  const candidates = data.filter((item) => item.dietDate === targetDate);
   if (candidates.length === 0) return null;
   // A newer row may update only one meal. Keep the latest populated value for each meal.
-  candidates.sort((a, b) => b.dietSeq - a.dietSeq);
-  const latestMeal = (key: 'dietAditCn1' | 'dietAditCn2' | 'dietAditCn3') =>
-    cleanMenu(candidates.find((item) => cleanMenu(item[key]).length > 0)?.[key]);
+  const latestMeal = (key: 'dietAditCn1' | 'dietAditCn2' | 'dietAditCn3') => {
+    let latest: RawDiet | undefined;
+    for (const row of candidates) {
+      // Equal sequence numbers retain the first populated row, like a stable sort.
+      if ((!latest || row.dietSeq > latest.dietSeq) && row[key]?.trim()) latest = row;
+    }
+    return cleanMenu(latest?.[key]);
+  };
   return {
     date: targetDate,
     breakfast: latestMeal('dietAditCn1'),

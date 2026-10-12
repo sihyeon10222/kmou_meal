@@ -17,7 +17,10 @@ async function github(path: string, method: 'GET' | 'POST', token: string, body?
     ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(30_000),
   });
-  if (!response.ok) throw new Error(`GitHub 이슈 알림 실패: HTTP ${response.status}`);
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(`GitHub 이슈 알림 실패: HTTP ${response.status}`);
+  }
   return response.json();
 }
 

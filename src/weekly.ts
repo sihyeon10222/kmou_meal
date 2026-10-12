@@ -3,7 +3,7 @@ import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createPublishingServices } from './publishing-services.js';
 import { createWeeklyFetcher, WEEKLY_KINDS, type WeeklyKind, type WeeklyRange } from './weekly-data.js';
-import { renderWeekly } from './render-weekly.js';
+import { createWeeklyRenderer } from './render-weekly.js';
 import { runWeekly } from './run-weekly.js';
 import { postWeekly, publishedWeekly } from './post-weekly.js';
 import { notifyWeeklyReplacements } from './weekly-notifications.js';
@@ -13,9 +13,10 @@ export async function executeWeekly(range: WeeklyRange, kind: WeeklyKind | 'all'
   const today = seoulDate();
   await mkdir('output', { recursive: true });
   const getServices = createPublishingServices();
+  const renderer = createWeeklyRenderer();
   const results = await runWeekly(range, kind, preview, force, {
     fetch: createWeeklyFetcher(),
-    render: renderWeekly,
+    render: renderer.render,
     published: async (week, current) => publishedWeekly((await getServices()).storage, week, current),
     post: async (data, images, forcePublish) => {
       const { storage, instagram } = await getServices();
@@ -23,7 +24,7 @@ export async function executeWeekly(range: WeeklyRange, kind: WeeklyKind | 'all'
         await writeFile(`output/${data.week}-${data.kind}-${record.runId}.publish.json`, JSON.stringify(record, null, 2));
       }, today);
     },
-  }, today);
+  }, today).finally(() => renderer.close());
   await writeFile(`output/${range.week}-weekly-${randomUUID()}.run.json`, JSON.stringify({ range, kind, preview, force, results }, null, 2));
   console.log(JSON.stringify(results, null, 2));
   const summary = process.env.GITHUB_STEP_SUMMARY;

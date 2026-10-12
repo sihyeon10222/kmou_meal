@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { createRenderBrowser } from './render-browser.js';
 import sharp from 'sharp';
 import { escapeHtml, readTemplate, loadFontCss } from './render-assets.js';
 import { layoutWeekly } from './layout-weekly.js';
@@ -42,23 +42,37 @@ export async function weeklyHtml(data: WeeklyPage, updatedOn?: string, menuChang
   return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>${font} ${design}\n${css}</style><body><main class="sheet ${data.kind} ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.days[0]!.sections.length}"><div class="meal-surfaces" aria-hidden="true">${data.days[0]!.sections.map(section => `<div class="meal-surface ${escapeHtml(section.key)}"></div>`).join('')}</div><header><div class="heading-row"><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div>${updatedOn ? `<div class="update-notice">${shortDate(updatedOn)} (${weekdayName(updatedOn)})에 식단표 변경됨</div>` : ''}</header><div class="calendar">${days}</div></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
-  const images: string[] = [];
-  let master: string | undefined;
-  for (const page of data.pages) {
-    const rendered = await renderWeeklyPage(page, data.week, outputDir, data.updatedOn, data.menuChanges);
-    images.push(...rendered.images);
-    master = rendered.master ?? master;
-  }
-  return { images, ...(master ? { master } : {}) };
+  const renderer = createWeeklyRenderer();
+  try { return await renderer.render(data, outputDir); }
+  finally { await renderer.close(); }
 }
 
-async function renderWeeklyPage(data: WeeklyPage, week: string, outputDir: string, updatedOn?: string, menuChanges?: WeeklyData['menuChanges']): Promise<WeeklyImages> {
+/** Share Chromium across feed kinds while keeping page state and failures isolated. */
+export function createWeeklyRenderer() {
+  const browser = createRenderBrowser('Weekly');
+  let closed = false;
+  return {
+    async render(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
+      if (closed) throw new Error('Weekly 렌더러가 이미 종료되었습니다.');
+      const images: string[] = [];
+      let master: string | undefined;
+      for (const page of data.pages) {
+        const rendered = await renderWeeklyPage(browser, page, data.week, outputDir, data.updatedOn, data.menuChanges);
+        images.push(...rendered.images);
+        master = rendered.master ?? master;
+      }
+      return { images, ...(master ? { master } : {}) };
+    },
+    async close() { closed = true; await browser.close(); },
+  };
+}
+
+async function renderWeeklyPage(browser: ReturnType<typeof createRenderBrowser>, data: WeeklyPage, week: string, outputDir: string, updatedOn?: string, menuChanges?: WeeklyData['menuChanges']): Promise<WeeklyImages> {
   await mkdir(outputDir, { recursive: true });
   const stem = resolve(outputDir, `${week}-${data.kind}-weekly`);
   const panorama = data.kind === 'dormitory' || data.kind === 'badaro';
-  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: panorama ? 2160 : 1080, height: 1440 }, deviceScaleFactor: 1 });
   try {
-    const page = await browser.newPage({ viewport: { width: panorama ? 2160 : 1080, height: 1440 }, deviceScaleFactor: 1 });
     await page.setContent(await weeklyHtml(data, updatedOn, menuChanges), { waitUntil: 'load' });
     await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
     await page.evaluate(layoutWeekly);
@@ -81,5 +95,5 @@ async function renderWeeklyPage(data: WeeklyPage, week: string, outputDir: strin
       images.push(image);
     }
     return { images, master };
-  } finally { await browser.close(); }
+  } finally { await page.close(); }
 }

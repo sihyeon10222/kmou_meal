@@ -43,7 +43,7 @@ test('actual free space selects maximum decoration, shrinks to fit, and omits be
 test('different restaurant card heights share the approved Badaro canvas anchor', () => {
   const placements = [522, 700, 820].map(y => findArtPlacement({
     ...layout, obstacles: [],
-    meals: { lunch: { x: 32, y, width: 1016, height: 1200 - y }, dinner: layout.meals.dinner },
+    meals: { lunch: { x: 32, y, width: 1016, height: 1200 - y }, dinner: layout.meals.dinner! },
   }, ['lunch', 'dinner']));
   for (const placement of placements) {
     assert.deepEqual(placement, placements[0]);
@@ -217,7 +217,8 @@ test('Cloudflare sends authenticated JSON selection and 512px multipart FLUX req
 
 test('CLI validates art modes, configuration is optional, and Cloudflare token is redacted', () => {
   assert.equal(artMode(undefined, 'cache'), 'cache');
-  assert.equal(parseCliOptions(['story', '--preview', '--art', 'generate']).art, 'generate');
+  const options = parseCliOptions(['story', '--preview', '--art', 'generate']);
+  assert.equal(options.command === 'story' && options.art, 'generate');
   assert.throws(() => parseCliOptions(['story', '--art', 'bad']));
   assert.throws(() => parseCliOptions(['feed', '--art', 'off']));
   assert.equal(cloudflareConfig({}), undefined);

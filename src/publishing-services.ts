@@ -1,9 +1,10 @@
 import { loadConfig } from './config.js';
-import { StoryStorage } from './upload-supabase.js';
-import { InstagramPublisher } from './publish-instagram.js';
 
 export async function initializePublishingServices() {
   const config = loadConfig();
+  const [{ StoryStorage }, { InstagramPublisher }] = await Promise.all([
+    import('./upload-supabase.js'), import('./publish-instagram.js'),
+  ]);
   const storage = new StoryStorage(config);
   const instagram = new InstagramPublisher(config);
   await Promise.all([storage.checkBucket(), instagram.checkAccount()]);

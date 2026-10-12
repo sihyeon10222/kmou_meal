@@ -14,7 +14,9 @@
     "check-setup": "tsx src/check-setup.ts",
     "secrets:sync": "tsx scripts/sync-secrets.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --project tsconfig.check.json",
+    "lint": "eslint src scripts tests --max-warnings=0",
+    "benchmark": "tsx scripts/benchmark.ts",
     "fetch-menu": "tsx src/index.ts",
     "test": "tsx --test tests/*.test.ts"
   },

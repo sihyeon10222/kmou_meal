@@ -336,6 +336,23 @@ test('replacement notification retries without reposting or duplicating issue co
   } finally { globalThis.fetch = original; }
 });
 
+test('notification HTTP errors release the response body and preserve pending notices and the original status', async t => {
+  const s = services();
+  const notice = { runId: 'revision', week: range.week, kind: 'combined' as const, oldMediaId: 'old', newMediaId: 'new' };
+  s.records.set(`${range.week}/combined/success.json`, { ...oldRecord('combined', 'new'), pendingNotifications: [notice] });
+  let cancelled = 0;
+  t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream({
+    cancel() { cancelled++; throw new Error('cancel failed'); },
+  }), { status: 503 }));
+  await assert.rejects(notifyWeeklyReplacements(s.storage, range.week, ['combined'], 'token', 'owner/repo'), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.match(error.errors[0].message, /HTTP 503/);
+    return true;
+  });
+  assert.equal(cancelled, 1);
+  assert.deepEqual((await publishedWeekly(s.storage, range.week, 'combined'))?.pendingNotifications, [notice]);
+});
+
 test('all menus removed do not post or queue deletion notices', async () => {
   const s = services();
   const original = data('badaro');

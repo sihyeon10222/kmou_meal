@@ -120,7 +120,7 @@ export function createStoryArt(options: StoryArtOptions): StoryArtDecorator {
       const menus = artMenus(data), meals = Object.keys(menus) as ArtMeal[];
       if (!meals.length) return skip(data.request.restaurant === 'snack' ? 'excluded-restaurant' : 'no-lunch-or-dinner');
       // Test the minimum-size layout before spending anything on the AI.
-      let placement = findArtPlacement(layout, meals);
+      const placement = findArtPlacement(layout, meals);
       if (!placement) return skip('insufficient-space');
       try {
         character ??= readFile(options.characterPath ?? DEFAULT_CHARACTER).then(bytes => sharp(bytes).trim().png().toBuffer());
@@ -129,28 +129,25 @@ export function createStoryArt(options: StoryArtOptions): StoryArtDecorator {
         const ai = options.ai ?? (config ? createFoodAi(config) : undefined);
         const selectionKey = hash({ model: FOOD_SELECTION_MODEL, version: SELECTION_VERSION, menus });
         const selectionPath = resolve(cacheDir, 'selections', `${selectionKey}.json`);
-        let selectionCache = await readOptional(selectionPath);
+        const selectionCache = await readOptional(selectionPath);
+        let selected: SelectedDish[] | undefined;
         // Older cached responses could omit dinner despite having real dinner dishes.
         // Reuse complete selections, but never silently turn two meals into one bubble.
         if (selectionCache) {
-          try { validateSelection(JSON.parse(selectionCache.toString()), menus); }
-          catch { selectionCache = undefined; }
+          try { selected = validateSelection(JSON.parse(selectionCache.toString()), menus); }
+          catch { /* Invalid or incomplete selections are cache misses. */ }
         }
-        let rawSelection: unknown;
-        if (selectionCache) { rawSelection = JSON.parse(selectionCache.toString()); report.cacheHits++; }
+        if (selected) report.cacheHits++;
         else {
           if (options.mode !== 'generate') return skip('selection-cache-miss');
           if (!ai) return skip('missing-cloudflare-config');
           report.selectionCalls++;
-          rawSelection = await ai.select(menus);
-          validateSelection(rawSelection, menus);
+          const rawSelection = await ai.select(menus);
+          selected = validateSelection(rawSelection, menus);
           await save(selectionPath, JSON.stringify(rawSelection));
         }
-        const selected = validateSelection(rawSelection, menus);
         report.selected = selected;
-        if (!selected.length) return skip('no-food-selected');
-        placement = findArtPlacement(layout, selected.map(dish => dish.meal));
-        if (!placement) return skip('insufficient-space');
+        // Validation requires exactly the supplied meals, so the checked placement still applies.
         const composites: OverlayOptions[] = [];
         for (const dish of selected) {
           const prompt = foodPrompt(dish);

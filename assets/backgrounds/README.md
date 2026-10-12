@@ -6,7 +6,6 @@ Original PNGs supplied by the user on 2026-10-11; no image edits.
 - `snack-teacher.png`: `Background.zip` → `BG_학식, 기숙사식당.png` (1080×1440), for cafeteria and staff restaurant weekly posts, as explicitly requested.
 - `story.png`: `BG_스토리.png` (1080×1920), for every restaurant's stories.
 
-All three images are repository assets required by GitHub Actions. The renderer reads them relative to its module, never from Downloads or the working directory, and embeds them as data URLs in the HTML. Both source execution and the compiled `dist/` renderer use the same repository assets. No network request or signed image URL is needed during rendering.
-
-Images use centered `background-size: cover` at their original aspect ratios.
-Transparency, blur and highlights belong to the cards and labels, not the photo.
+These user-provided originals are retained as design references. The current
+Story and weekly renderers use the solid `#F6F8FB` background in
+`templates/design.css`; they do not read or embed these images.

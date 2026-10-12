@@ -5,12 +5,16 @@ import type { StoryRequest } from './story-modes.js';
 export interface MenuSection { key: string; label: string; items: string[] }
 export interface StoryRenderData { request: StoryRequest; sections: MenuSection[] }
 
-export function dormitoryStory(request: StoryRequest, menu: DailyMenu | null): StoryRenderData {
-  return { request, sections: [
+export function mealSections(menu: Pick<DailyMenu, 'breakfast' | 'lunch' | 'dinner'> | null | undefined): MenuSection[] {
+  return [
     { key: 'breakfast', label: 'Breakfast', items: menu?.breakfast ?? [] },
     { key: 'lunch', label: 'Lunch', items: menu?.lunch ?? [] },
     { key: 'dinner', label: 'Dinner', items: menu?.dinner ?? [] },
-  ].filter(section => request.scope === 'full' || section.key === request.scope) };
+  ];
+}
+
+export function dormitoryStory(request: StoryRequest, menu: DailyMenu | null): StoryRenderData {
+  return { request, sections: mealSections(menu).filter(section => request.scope === 'full' || section.key === request.scope) };
 }
 
 export function coopStory(request: StoryRequest, menu: CoopDailyMenu): StoryRenderData {
@@ -23,10 +27,5 @@ export function coopStory(request: StoryRequest, menu: CoopDailyMenu): StoryRend
       { key: 'snack', label: '분식코너', items: snack },
     ] };
   }
-  const { breakfast, lunch, dinner } = menu.staffRestaurant;
-  return { request, sections: [
-    { key: 'breakfast', label: 'Breakfast', items: breakfast },
-    { key: 'lunch', label: 'Lunch', items: lunch },
-    { key: 'dinner', label: 'Dinner', items: dinner },
-  ].filter(section => request.scope === 'full' || section.key === request.scope) };
+  return { request, sections: mealSections(menu.staffRestaurant).filter(section => request.scope === 'full' || section.key === request.scope) };
 }
