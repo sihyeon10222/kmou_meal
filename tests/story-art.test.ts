@@ -73,23 +73,25 @@ test('thought trails replace generated dots with three separated shrinking outli
   const body = await sharp(await cloudBody(input)).metadata();
   assert.ok(body.height! < 400, 'detached generated dot is removed');
   for (const size of [150, 250, 260]) for (const meal of ['lunch', 'dinner'] as const) {
-    const output = await renderThoughtBubble(input, meal, { x: 500, y: 600, width: size, height: size },
+    const height = Math.round(size * 1.28);
+    const output = await renderThoughtBubble(input, meal, { x: 500, y: 600, width: size, height },
       { x: meal === 'lunch' ? 580 : 300, y: 900, width: 460, height: 545 });
     const { data, info } = await sharp(output).raw().toBuffer({ resolveWithObject: true });
     const bands: { top: number; bottom: number }[] = [];
     let active = false;
-    for (let y = 0; y < size; y++) {
+    for (let y = 0; y < height; y++) {
       let occupied = false;
       for (let x = 0; x < size; x++) if (data[(y * size + x) * 4 + 3]! > 16) occupied = true;
       if (occupied && !active) bands.push({ top: y, bottom: y });
       if (occupied) bands.at(-1)!.bottom = y;
       active = occupied;
     }
-    assert.equal(info.width, size); assert.equal(info.height, size);
+    assert.equal(info.width, size); assert.equal(info.height, height);
     assert.equal(bands.length, 4, 'one cloud and three detached circles');
+    assert.ok(bands[0]!.bottom - bands[0]!.top > size * .9, 'cloud uses the enlarged body area');
     const heights = bands.slice(1).map(band => band.bottom - band.top);
     assert.ok(heights[0]! > heights[1]! && heights[1]! > heights[2]!);
-    assert.ok(bands.at(-1)!.bottom < size - 1, 'last circle remains inside the checked rectangle');
+    assert.ok(bands.at(-1)!.bottom < height - 1, 'last circle remains inside the checked rectangle');
   }
 });
 

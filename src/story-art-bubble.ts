@@ -33,7 +33,8 @@ export async function cloudBody(input: Buffer): Promise<Buffer> {
 
 /** All three outlined circles stay inside the collision-checked bubble rectangle. */
 export async function renderThoughtBubble(input: Buffer, meal: ArtMeal, box: ArtRect, character: ArtRect): Promise<Buffer> {
-  const scale = box.height / 250;
+  // Reserve a separate trail below the larger cloud; circles keep their existing size.
+  const scale = box.width / 250;
   const body = await sharp(await cloudBody(input))
     .resize(box.width, Math.round(box.height - 72 * scale), { fit: 'inside' }).png().toBuffer({ resolveWithObject: true });
   const center = box.width / 2;

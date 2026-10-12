@@ -56,7 +56,7 @@ export function findArtPlacement(layout: StoryArtLayout, meals: ArtMeal[]): ArtP
   for (let width = ART_MAX_WIDTH; width >= ART_MIN_WIDTH; width -= 4) {
     const scale = width / ART_MAX_WIDTH;
     const characterHeight = Math.round(460 * CHARACTER_RATIO * scale);
-    const height = Math.round(276 * scale) + characterHeight;
+    const height = Math.round(346 * scale) + characterHeight;
     if (height > bottom - top) continue;
     const preferred = meals.length === 2 && layout.meals.lunch
       ? layout.meals.lunch.y + layout.meals.lunch.height - height * .7
@@ -72,10 +72,10 @@ export function findArtPlacement(layout: StoryArtLayout, meals: ArtMeal[]): ArtP
           x: Math.round(x + dx * scale), y: Math.round(y + dy * scale),
           width: Math.round(w * scale), height: Math.round(h * scale),
         });
-        const character = box(60, 276, 460, 460 * CHARACTER_RATIO);
+        const character = box(60, 346, 460, 460 * CHARACTER_RATIO);
         const bubbles: Partial<Record<ArtMeal, ArtRect>> = {};
         meals.forEach((meal, index) => { bubbles[meal] = meals.length === 1
-          ? box(130, 8, 260, 260) : box(index * 270, index * 20, 250, 250); });
+          ? box(130, 8, 260, 330) : box(index * 270, index * 20, 250, 320); });
         const parts = [character, ...Object.values(bubbles)];
         if (parts.every(part => part.x >= 32 && part.y >= top && part.x + part.width <= layout.width - 32
           && part.y + part.height <= bottom + 1
