@@ -1,10 +1,38 @@
 import { readFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createClient } from '@supabase/supabase-js';
-import type { PublishConfig } from './config.js';
+import { safeError, type PublishConfig } from './config.js';
 import type { StoryMode } from './story-modes.js';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const IMAGE_ATTEMPTS = 3;
+
+function isTransient(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if ('status' in error && typeof error.status === 'number') {
+    return error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+  if ('originalError' in error) return isTransient(error.originalError);
+  return error instanceof TypeError || error instanceof SyntaxError || ['TimeoutError', 'AbortError'].includes(error.name);
+}
+
+function isDuplicate(error: Error): boolean {
+  return ('status' in error && error.status === 409)
+    || ('statusCode' in error && String(error.statusCode) === '409')
+    || ('code' in error && error.code === 'ResourceAlreadyExists');
+}
+
+/** Keep useful diagnostics even when the service only returns message: "<none>". */
+function uploadError(error: Error): Error {
+  const details = ['status', 'statusCode', 'code'].flatMap(key => {
+    const value = (error as unknown as Record<string, unknown>)[key];
+    return (typeof value === 'string' || typeof value === 'number') && /^[\w-]+$/.test(String(value))
+      ? [`${key}=${value}`] : [];
+  });
+  if ('originalError' in error && error.originalError instanceof Error) details.push(`cause=${error.originalError.name}`);
+  return new Error(`Supabase 이미지 업로드 실패: ${error.message} (${details.join(', ') || error.name})`, { cause: error });
+}
 
 export interface PostRecord {
   runId: string;
@@ -24,7 +52,7 @@ export class StoryStorage {
   private readonly client;
   private readonly bucket;
 
-  constructor(private readonly config: PublishConfig) {
+  constructor(private readonly config: PublishConfig, private readonly sleep: (ms: number) => Promise<unknown> = delay) {
     this.client = createClient(config.supabaseUrl, config.supabaseKey, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: {
@@ -47,20 +75,43 @@ export class StoryStorage {
   async uploadImage(path: string, objectPath: string): Promise<string> {
     const bytes = await readFile(path);
     if (bytes.length > MAX_IMAGE_BYTES) throw new Error('Story JPEG가 8MB를 초과합니다.');
-    const { error } = await this.bucket.upload(objectPath, bytes, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
-    if (error) throw new Error(`Supabase 이미지 업로드 실패: ${error.message}`);
+    for (let attempt = 1; ; attempt++) {
+      const { error } = await this.bucket.upload(objectPath, bytes, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
+      // A lost response can leave the object stored. Never overwrite it: verify its bytes below.
+      if (!error || isDuplicate(error)) break;
+      if (attempt >= IMAGE_ATTEMPTS || !isTransient(error)) throw uploadError(error);
+      console.warn(`Supabase 이미지 업로드 재시도 ${attempt}/${IMAGE_ATTEMPTS - 1}: ${safeError(uploadError(error))}`);
+      await this.sleep(1_000 * 2 ** (attempt - 1));
+    }
     const { data } = this.bucket.getPublicUrl(objectPath);
-    const response = await fetch(data.publicUrl, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    // Retry the read separately so a transient public URL failure never repeats a successful upload.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.verifyImage(data.publicUrl, bytes);
+        return data.publicUrl;
+      } catch (error) {
+        const notReady = error instanceof Error && 'status' in error && error.status === 404;
+        if (attempt >= IMAGE_ATTEMPTS || (!notReady && !isTransient(error))) throw error;
+        await this.sleep(1_000 * 2 ** (attempt - 1));
+      }
+    }
+  }
+
+  private async verifyImage(url: string, bytes: Buffer): Promise<void> {
+    const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
-    if (!response.ok || contentType !== 'image/jpeg') {
+    if (!response.ok) {
       await response.body?.cancel();
-      throw new Error('업로드 이미지의 공개 URL 검증에 실패했습니다.');
+      throw Object.assign(new Error(`업로드 이미지의 공개 URL 검증에 실패했습니다: HTTP ${response.status}`), { status: response.status });
+    }
+    if (contentType !== 'image/jpeg') {
+      await response.body?.cancel();
+      throw new Error('업로드 이미지의 공개 URL 검증에 실패했습니다: JPEG가 아닙니다.');
     }
     const downloaded = Buffer.from(await response.arrayBuffer());
     if (!downloaded.equals(bytes)) {
       throw new Error('업로드 이미지의 공개 URL 검증에 실패했습니다.');
     }
-    return data.publicUrl;
   }
 
   async writeRecord(record: PostRecord): Promise<void> {
