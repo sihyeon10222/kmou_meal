@@ -37,10 +37,23 @@ export async function measureStoryArtLayout(page: Page): Promise<StoryArtLayout>
   });
 }
 
-export const ART_MAX_WIDTH = 520;
+export const ART_MAX_WIDTH = 610;
 export const ART_MIN_WIDTH = 312;
 export const ART_TEXT_GAP = 16;
 const CHARACTER_RATIO = 1149 / 970;
+
+export function bubbleBodyHeight(box: ArtRect): number {
+  return Math.round(box.height - 72 * Math.max(.6, box.width / 375));
+}
+
+/** Reserve the trail's central corridor without reserving its transparent lower corners. */
+export function bubbleCollisionParts(box: ArtRect): ArtRect[] {
+  const height = bubbleBodyHeight(box);
+  return [
+    { ...box, height },
+    { x: box.x + box.width * .15, y: box.y + height, width: box.width * .7, height: box.height - height },
+  ];
+}
 
 export function intersects(a: ArtRect, b: ArtRect, gap = 0): boolean {
   return a.x < b.x + b.width + gap && a.x + a.width + gap > b.x
@@ -55,8 +68,8 @@ export function findArtPlacement(layout: StoryArtLayout, meals: ArtMeal[]): ArtP
   const bottom = Math.min(layout.height - 64, Math.max(...regions.map(r => r.y + r.height)) - 32);
   for (let width = ART_MAX_WIDTH; width >= ART_MIN_WIDTH; width -= 4) {
     const scale = width / ART_MAX_WIDTH;
-    const characterHeight = Math.round(460 * CHARACTER_RATIO * scale);
-    const height = Math.round(346 * scale) + characterHeight;
+    const characterHeight = Math.round(340 * CHARACTER_RATIO * scale);
+    const height = Math.round(580 * scale) + characterHeight;
     if (height > bottom - top) continue;
     const preferred = meals.length === 2 && layout.meals.lunch
       ? layout.meals.lunch.y + layout.meals.lunch.height - height * .7
@@ -72,14 +85,16 @@ export function findArtPlacement(layout: StoryArtLayout, meals: ArtMeal[]): ArtP
           x: Math.round(x + dx * scale), y: Math.round(y + dy * scale),
           width: Math.round(w * scale), height: Math.round(h * scale),
         });
-        const character = box(60, 346, 460, 460 * CHARACTER_RATIO);
+        const character = box(270, 580, 340, 340 * CHARACTER_RATIO);
         const bubbles: Partial<Record<ArtMeal, ArtRect>> = {};
-        meals.forEach((meal, index) => { bubbles[meal] = meals.length === 1
-          ? box(130, 8, 260, 330) : box(index * 270, index * 20, 250, 320); });
+        meals.forEach(meal => { bubbles[meal] = meals.length === 1
+          ? box(220, 180, 390, 462)
+          : meal === 'lunch' ? box(0, 300, 375, 447) : box(235, 0, 375, 447); });
         const parts = [character, ...Object.values(bubbles)];
         if (parts.every(part => part.x >= 32 && part.y >= top && part.x + part.width <= layout.width - 32
-          && part.y + part.height <= bottom + 1
-          && layout.obstacles.every(obstacle => !intersects(part, obstacle, ART_TEXT_GAP)))) {
+          && part.y + part.height <= bottom + 1)
+          && [character, ...Object.values(bubbles).flatMap(bubbleCollisionParts)].every(part =>
+            layout.obstacles.every(obstacle => !intersects(part, obstacle, ART_TEXT_GAP)))) {
           return { width, character, bubbles };
         }
       }

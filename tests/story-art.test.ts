@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { createFoodAi, cloudflareConfig, FOOD_IMAGE_MODEL, FOOD_SELECTION_MODEL } from '../src/cloudflare-ai.js';
 import { artMenus, artMode, createStoryArt, transparentBubble, validateSelection } from '../src/story-art.js';
-import { ART_MIN_WIDTH, findArtPlacement, intersects, type StoryArtLayout } from '../src/story-art-layout.js';
+import { ART_MAX_WIDTH, ART_MIN_WIDTH, bubbleCollisionParts, findArtPlacement, intersects, type StoryArtLayout } from '../src/story-art-layout.js';
 import { createStoryRenderer } from '../src/render-story.js';
 import { storyDesignData } from './fixtures/story-design.js';
 import { parseCliOptions } from '../src/cli-options.js';
@@ -22,14 +22,19 @@ const choice = { lunch: { index: 0, description: 'Spicy beef and mushroom stew' 
 const bubble = () => sharp(Buffer.from('<svg width="512" height="512"><rect width="512" height="512" fill="#ff00ff"/><circle cx="256" cy="230" r="180" fill="white" stroke="#7caeff" stroke-width="8"/><ellipse cx="256" cy="250" rx="80" ry="45" fill="#dc8f42"/><circle cx="256" cy="447" r="18" fill="white"/></svg>')).png().toBuffer();
 
 test('actual free space selects maximum decoration, shrinks to fit, and omits below minimum', () => {
-  const full = findArtPlacement(layout, ['lunch', 'dinner'])!;
-  assert.equal(full.width, 520);
+  const full = findArtPlacement({ ...layout, obstacles: [] }, ['lunch', 'dinner'])!;
+  assert.equal(full.width, ART_MAX_WIDTH);
+  assert.equal(full.bubbles.lunch!.width, 250 * 1.5);
+  assert.equal(full.bubbles.dinner!.width, 250 * 1.5);
+  assert.ok(full.bubbles.lunch!.y > full.bubbles.dinner!.y);
   const narrow = { ...layout, obstacles: [{ x: 0, y: 0, width: 710, height: 1920 }] };
   const fit = findArtPlacement(narrow, ['lunch', 'dinner'])!;
-  assert.ok(fit.width >= ART_MIN_WIDTH && fit.width < 520);
+  assert.ok(fit.width >= ART_MIN_WIDTH && fit.width < ART_MAX_WIDTH);
   for (const part of [fit.character, ...Object.values(fit.bubbles)]) {
-    assert.ok(narrow.obstacles.every(obstacle => !intersects(part, obstacle, 16)));
     assert.ok(part.y + part.height <= 1856);
+  }
+  for (const part of [fit.character, ...Object.values(fit.bubbles).flatMap(bubbleCollisionParts)]) {
+    assert.ok(narrow.obstacles.every(obstacle => !intersects(part, obstacle, 16)));
   }
   assert.equal(findArtPlacement({ ...layout, obstacles: [{ x: 0, y: 0, width: 760, height: 1920 }] }, ['lunch', 'dinner']), undefined);
 });

@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import type { ArtMeal, ArtRect } from './story-art-layout.js';
+import { bubbleBodyHeight } from './story-art-layout.js';
 
 /** Keep the enclosed cloud, removing detached AI-generated dots before drawing a consistent trail. */
 export async function cloudBody(input: Buffer): Promise<Buffer> {
@@ -34,9 +35,9 @@ export async function cloudBody(input: Buffer): Promise<Buffer> {
 /** All three outlined circles stay inside the collision-checked bubble rectangle. */
 export async function renderThoughtBubble(input: Buffer, meal: ArtMeal, box: ArtRect, character: ArtRect): Promise<Buffer> {
   // Reserve a separate trail below the larger cloud; circles keep their existing size.
-  const scale = box.width / 250;
+  const scale = Math.max(.6, box.width / 375);
   const body = await sharp(await cloudBody(input))
-    .resize(box.width, Math.round(box.height - 72 * scale), { fit: 'inside' }).png().toBuffer({ resolveWithObject: true });
+    .resize(box.width, bubbleBodyHeight(box), { fit: 'inside' }).png().toBuffer({ resolveWithObject: true });
   const center = box.width / 2;
   const target = Math.max(center - box.width * .3, Math.min(center + box.width * .3,
     character.x + character.width * .58 - box.x));
