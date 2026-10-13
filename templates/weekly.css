@@ -28,3 +28,5 @@ p:last-child { margin-bottom: 0; }
 
 .panorama .empty { font-size: 30px; }
 .changed-menu { color: var(--changed); }
+
+.range.updated-range { color: var(--changed); }

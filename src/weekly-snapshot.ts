@@ -45,6 +45,7 @@ export function prepareWeekly(data: WeeklyData, previous: WeeklyPage[] | undefin
   const prepared = structuredClone(data);
   delete prepared.updatedOn;
   delete prepared.menuChanges;
+  delete prepared.updatedKinds;
   if (replacement) prepared.updatedOn = today;
   if (previous) {
     prepared.pages = prepared.pages.map(page => ({ ...page, days: page.days.map(day => {
@@ -65,11 +66,14 @@ export function prepareWeekly(data: WeeklyData, previous: WeeklyPage[] | undefin
   if (replacement && previous) {
     const changes: NonNullable<WeeklyData['menuChanges']> = [];
     const normalize = (item: string) => item.replace(/\s+/gu, ' ').trim();
+    const updatedKinds = new Set<WeeklyPage['kind']>();
+    const normalizedItems = (items: string[]) => items.map(normalize).filter(Boolean).sort();
     for (const page of prepared.pages) for (const day of page.days) {
       if (day.date <= today) continue;
       for (const section of day.sections) {
         const old = previous.find(candidate => candidate.kind === page.kind)?.days.find(candidate => candidate.date === day.date)
           ?.sections.find(candidate => candidate.key === section.key);
+        if (JSON.stringify(normalizedItems(section.items)) !== JSON.stringify(normalizedItems(old?.items ?? []))) updatedKinds.add(page.kind);
         const remaining = new Map<string, number>();
         for (const item of old?.items ?? []) {
           const key = normalize(item);
@@ -87,6 +91,7 @@ export function prepareWeekly(data: WeeklyData, previous: WeeklyPage[] | undefin
       }
     }
     if (changes.length) prepared.menuChanges = changes;
+    prepared.updatedKinds = [...updatedKinds];
   }
   return publishableWeekly(prepared);
 }

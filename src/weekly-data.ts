@@ -13,6 +13,8 @@ export interface WeeklyData {
   monday: string;
   caption: string;
   updatedOn?: string;
+  /** Rendering-only restaurant differences from the last successful post. */
+  updatedKinds?: WeeklyPageKind[];
   /** Rendering-only differences from the last successful post; not stored in menu snapshots. */
   menuChanges?: { kind: WeeklyPageKind; date: string; section: string; indexes: number[] }[];
   pages: WeeklyPage[];

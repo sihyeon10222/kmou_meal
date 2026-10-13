@@ -23,7 +23,7 @@ const dish = (text: string) => {
   return parts.map(part => `<span class="menu-part">${part}</span>`).join('<wbr>');
 };
 const itemsHtml = (items: string[], changed: number[] = []) => items.length ? items.map((item, index) => `<p${changed.includes(index) ? ' class="changed-menu"' : ''}>${dish(item)}</p>`).join('') : '<p class="empty">등록된 식단 없음</p>';
-export async function weeklyHtml(data: WeeklyPage, updatedOn?: string, menuChanges?: WeeklyData['menuChanges']): Promise<string> {
+export async function weeklyHtml(data: WeeklyPage, updatedOn?: string, menuChanges?: WeeklyData['menuChanges'], updatedKinds?: WeeklyData['updatedKinds']): Promise<string> {
   const [css, font, design] = await Promise.all([
     readTemplate('weekly.css'),
     loadFontCss(),
@@ -31,6 +31,8 @@ export async function weeklyHtml(data: WeeklyPage, updatedOn?: string, menuChang
   ]);
   const panorama = data.kind === 'dormitory' || data.kind === 'badaro';
   const title = { dormitory: '기숙사', badaro: '승선생활관', teacher: '교직원식당', snack: '학식' }[data.kind];
+  const combinedNames = (['snack', 'teacher'] as const).filter(kind => updatedKinds?.includes(kind)).map(kind => kind === 'snack' ? '학식' : '교직원식당');
+  const notice = !panorama && combinedNames.length ? `${combinedNames.join('&')} 식단표 변경됨` : '식단표 변경됨';
   const days = data.days.map((day, index) => {
     const weekdayIndex = new Date(`${day.date}T12:00:00Z`).getUTCDay();
     const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][weekdayIndex];
@@ -39,7 +41,7 @@ export async function weeklyHtml(data: WeeklyPage, updatedOn?: string, menuChang
       return `<section class="cell ${escapeHtml(section.key)}" aria-label="${escapeHtml(section.label)}">${index === 0 ? `<h2><span class="meal-label">${escapeHtml(section.label)}</span></h2>` : ''}<div class="menu">${itemsHtml(section.items, changed)}</div></section>`;
     }).join('')}</article>`;
   }).join('');
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>${font} ${design}\n${css}</style><body><main class="sheet ${data.kind} ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.days[0]!.sections.length}"><div class="meal-surfaces" aria-hidden="true">${data.days[0]!.sections.map(section => `<div class="meal-surface ${escapeHtml(section.key)}"></div>`).join('')}</div><header><div class="heading-row"><h1>${title}</h1><div class="range">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div>${updatedOn ? `<div class="update-notice">${shortDate(updatedOn)} (${weekdayName(updatedOn)})에 식단표 변경됨</div>` : ''}</header><div class="calendar">${days}</div></main></body></html>`;
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><style>${font} ${design}\n${css}</style><body><main class="sheet ${data.kind} ${panorama ? 'panorama' : ''}" style="width:${panorama ? 2160 : 1080}px;--days:${data.days.length};--rows:${data.days[0]!.sections.length}"><div class="meal-surfaces" aria-hidden="true">${data.days[0]!.sections.map(section => `<div class="meal-surface ${escapeHtml(section.key)}"></div>`).join('')}</div><header><div class="heading-row"><h1>${title}</h1><div class="range${updatedOn ? ' updated-range' : ''}">${shortDate(data.days[0]!.date)} ~ ${shortDate(data.days.at(-1)!.date)}</div></div>${updatedOn ? `<div class="update-notice">${shortDate(updatedOn)}(${weekdayName(updatedOn)})에 ${escapeHtml(notice)}</div>` : ''}</header><div class="calendar">${days}</div></main></body></html>`;
 }
 export async function renderWeekly(data: WeeklyData, outputDir = 'output'): Promise<WeeklyImages> {
   const renderer = createWeeklyRenderer();
@@ -57,7 +59,7 @@ export function createWeeklyRenderer() {
       const images: string[] = [];
       let master: string | undefined;
       for (const page of data.pages) {
-        const rendered = await renderWeeklyPage(browser, page, data.week, outputDir, data.updatedOn, data.menuChanges);
+        const rendered = await renderWeeklyPage(browser, page, data.week, outputDir, data.updatedOn, data.menuChanges, data.updatedKinds);
         images.push(...rendered.images);
         master = rendered.master ?? master;
       }
@@ -67,13 +69,13 @@ export function createWeeklyRenderer() {
   };
 }
 
-async function renderWeeklyPage(browser: ReturnType<typeof createRenderBrowser>, data: WeeklyPage, week: string, outputDir: string, updatedOn?: string, menuChanges?: WeeklyData['menuChanges']): Promise<WeeklyImages> {
+async function renderWeeklyPage(browser: ReturnType<typeof createRenderBrowser>, data: WeeklyPage, week: string, outputDir: string, updatedOn?: string, menuChanges?: WeeklyData['menuChanges'], updatedKinds?: WeeklyData['updatedKinds']): Promise<WeeklyImages> {
   await mkdir(outputDir, { recursive: true });
   const stem = resolve(outputDir, `${week}-${data.kind}-weekly`);
   const panorama = data.kind === 'dormitory' || data.kind === 'badaro';
   const page = await browser.newPage({ viewport: { width: panorama ? 2160 : 1080, height: 1440 }, deviceScaleFactor: 1 });
   try {
-    await page.setContent(await weeklyHtml(data, updatedOn, menuChanges), { waitUntil: 'load' });
+    await page.setContent(await weeklyHtml(data, updatedOn, menuChanges, updatedKinds), { waitUntil: 'load' });
     await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
     await page.evaluate(layoutWeekly);
     await writeFile(`${stem}.html`, await page.content());
