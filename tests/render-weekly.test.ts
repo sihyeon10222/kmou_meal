@@ -145,7 +145,7 @@ test('compact ranges and update notices use the full panorama header', async () 
   const data = await fetcher('dormitory', range);
   const html = await weeklyHtml(data.pages[0]!, '2026-09-23');
   assert.match(html, /9\/21 ~ 9\/27/);
-  assert.match(html, /9\/23 \(수\)에 식단표 변경됨/);
+  assert.equal(html.match(/<div class="update-notice">([^<]*)<\/div>/)?.[1], '9/23(수)에 식단표 변경됨');
   assert.doesNotMatch(await weeklyHtml(data.pages[0]!), /식단표 변경됨/);
   const browser = await chromium.launch({ headless: true });
   try {
