@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { escapeHtml, readTemplate, loadFontCss } from './render-assets.js';
 export { escapeHtml } from './render-assets.js';
 import { resolve } from 'node:path';
-import { shortDate, weekdayName } from './weekly-data.js';
+import { shortDate } from './weekly-data.js';
 import { layoutStory } from './layout-story.js';
 import type { Page } from 'playwright';
 import { createRenderBrowser } from './render-browser.js';
@@ -49,7 +49,7 @@ function buildStoryHtml(data: StoryRenderData, assets: TemplateAssets, layout: s
     FONT: assets.font,
     CSS: `${assets.css}\n${layout}`,
     CLASSES: `${request.restaurant === 'badaro' ? 'badaro dormitory' : request.restaurant} ${request.scope}`,
-    DATE: escapeHtml(`${shortDate(request.targetDate)}(${weekdayName(request.targetDate)})`),
+    DATE: escapeHtml(`${shortDate(request.targetDate)}(${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(`${request.targetDate}T12:00:00Z`).getUTCDay()]})`),
     TITLE: { dormitory: '기숙사', badaro: '승선생활관', snack: '학식', teacher: '교직원식당' }[request.restaurant],
     SECTIONS: sections.map(sectionHtml).join(''),
   };
