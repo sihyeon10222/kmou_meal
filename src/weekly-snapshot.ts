@@ -40,36 +40,19 @@ export function hasFutureAddition(data: WeeklyData, previous: WeeklyPage[], toda
   })));
 }
 
-/** Freeze today and the past, including days in previously omitted restaurants. */
+/** Use the latest full week, comparing replacements against the last successful post. */
 export function prepareWeekly(data: WeeklyData, previous: WeeklyPage[] | undefined, today: string, replacement: boolean): WeeklyData | undefined {
   const prepared = structuredClone(data);
   delete prepared.updatedOn;
   delete prepared.menuChanges;
   delete prepared.updatedKinds;
   if (replacement) prepared.updatedOn = today;
-  if (previous) {
-    prepared.pages = prepared.pages.map(page => ({ ...page, days: page.days.map(day => {
-      if (day.date > today) return day;
-      const old = previous.find(p => p.kind === page.kind)?.days.find(d => d.date === day.date);
-      return { ...day, sections: day.sections.map(section => {
-        const saved = old?.sections.find(candidate => candidate.key === section.key);
-        return { ...section, items: saved ? structuredClone(saved.items) : [] };
-      }) };
-    }) }));
-    for (const old of previous) {
-      if (!prepared.pages.some(page => page.kind === old.kind)) {
-        prepared.pages.push({ ...structuredClone(old), days: old.days.map(day => day.date <= today
-          ? structuredClone(day) : { ...day, sections: day.sections.map(section => ({ ...section, items: [] })) }) });
-      }
-    }
-  }
   if (replacement && previous) {
     const changes: NonNullable<WeeklyData['menuChanges']> = [];
     const normalize = (item: string) => item.replace(/\s+/gu, ' ').trim();
     const updatedKinds = new Set<WeeklyPage['kind']>();
     const normalizedItems = (items: string[]) => items.map(normalize).filter(Boolean).sort();
     for (const page of prepared.pages) for (const day of page.days) {
-      if (day.date <= today) continue;
       for (const section of day.sections) {
         const old = previous.find(candidate => candidate.kind === page.kind)?.days.find(candidate => candidate.date === day.date)
           ?.sections.find(candidate => candidate.key === section.key);

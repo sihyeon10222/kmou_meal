@@ -76,17 +76,15 @@ test('weekly fetch preserves all cells, uses 5/7 days and shares coop responses'
   assert.deepEqual(badaro.days[0]!.sections[0]!.items, ['승선 조식']);
   assert.ok(dorm.days.every(day => day.sections.length === 3 && day.sections.every(section => !section.items.length)));
 });
-test('old two-corner snapshots retain past menus within the new four-corner layout', async () => {
+test('old two-corner snapshots use the latest four-corner menus for every date', async () => {
   const fetcher = createWeeklyFetcher({ dormitory: async () => null, badaro: async () => null, coop: async () => coopMenu });
   const data = await fetcher('combined', range);
   const previous = structuredClone(data.pages);
   previous[0]!.days.forEach(day => { day.sections = day.sections.slice(2); });
   const prepared = prepareWeekly(data, previous, range.monday, true)!;
-  const past = prepared.pages[0]!.days[0]!;
-  assert.deepEqual(past.sections.map(section => section.key), ['western', 'ramen', 'snack', 'set-meal']);
-  assert.deepEqual(past.sections.slice(0, 2).map(section => section.items), [[], []]);
-  assert.deepEqual(past.sections.slice(2), previous[0]!.days[0]!.sections);
-  assert.deepEqual(prepared.pages[0]!.days[1], data.pages[0]!.days[1]);
+  assert.deepEqual(prepared.pages, data.pages);
+  assert.deepEqual(prepared.pages[0]!.days[0]!.sections.map(section => section.key), ['western', 'ramen', 'snack', 'set-meal']);
+  assert.deepEqual(prepared.menuChanges?.filter(change => change.date === range.monday).map(change => change.section), ['western', 'ramen']);
 });
 test('API errors propagate instead of becoming empty menu data', async () => {
   const fetcher = createWeeklyFetcher({ badaro: async () => { throw new Error('badaro network'); }, dormitory: async () => { throw new Error('network'); }, coop: async () => { throw new Error('parser'); } });
@@ -369,7 +367,7 @@ function fullWeek(): WeeklyData {
   return { ...data('dormitory'), pages: [{ kind: 'dormitory', days: range.dates.map((date, i) => ({ date,
     sections: ['breakfast', 'lunch', 'dinner'].map(key => ({ key, label: key, items: i < 5 ? ['기존 메뉴'] : [] })) })) }] };
 }
-test('replacement highlights only added and edited future dishes, ignoring moves, whitespace and preserved dates', () => {
+test('replacement highlights added and edited dishes on all dates, ignoring moves and whitespace', () => {
   const old = fullWeek();
   old.pages[0]!.days[4]!.sections[0]!.items = ['백미밥', '미역국', '계란말이', '배추김치'];
   const next = structuredClone(old);
@@ -379,6 +377,8 @@ test('replacement highlights only added and edited future dishes, ignoring moves
   next.pages[0]!.days[6]!.sections[1]!.items = ['새로 등록된 식단'];
   const prepared = prepareWeekly(next, old.pages, '2026-09-23', true)!;
   assert.deepEqual(prepared.menuChanges, [
+    { kind: 'dormitory', date: range.dates[0], section: 'breakfast', indexes: [0] },
+    { kind: 'dormitory', date: range.dates[2], section: 'breakfast', indexes: [0] },
     { kind: 'dormitory', date: range.dates[4], section: 'breakfast', indexes: [3, 4] },
     { kind: 'dormitory', date: range.dates[6], section: 'lunch', indexes: [0] },
   ]);
@@ -388,17 +388,47 @@ test('replacement highlights only added and edited future dishes, ignoring moves
   assert.equal(prepareWeekly(next, undefined, '2026-09-23', false)!.menuChanges, undefined);
   assert.equal(prepareWeekly(next, undefined, '2026-09-23', true)!.menuChanges, undefined);
 });
-test('Wednesday weekend addition replaces, freezes elapsed days and refreshes future menus', async () => {
+test('Wednesday weekend addition refreshes the entire week including Tuesday corrections', async () => {
   const old = fullWeek();
   const next = structuredClone(old);
   next.pages[0]!.days.forEach(day => day.sections.forEach(section => { section.items = ['새 메뉴']; }));
+  next.pages[0]!.days[1]!.sections[2]!.items = [];
   assert.equal(hasFutureAddition(next, old.pages, '2026-09-23'), true);
   const prepared = prepareWeekly(next, old.pages, '2026-09-23', true)!;
   assert.equal(prepared.updatedOn, '2026-09-23');
-  assert.ok(prepared.pages[0]!.days.slice(0, 3).every(day => day.sections[0]!.items[0] === '기존 메뉴'));
-  assert.ok(prepared.pages[0]!.days.slice(3).every(day => day.sections[0]!.items[0] === '새 메뉴'));
+  assert.deepEqual(prepared.pages, next.pages);
+  assert.ok(prepared.menuChanges?.some(change => change.date === range.dates[1] && change.section === 'breakfast'));
   assert.match(prepared.caption, /9\/23 \(수\)에 학교 측의 식단 업데이트로 인해 재업로드된 식단표입니다\.\n\n학교 측/);
   assert.equal(hasFutureAddition(next, prepared.pages, '2026-09-23'), false);
+});
+test('Tuesday corrections alone do not trigger an automatic Wednesday replacement', async () => {
+  const old = fullWeek();
+  const next = structuredClone(old);
+  next.pages[0]!.days[1]!.sections[0]!.items = ['화요일 수정본'];
+  const deps = runDeps([]);
+  deps.published = async () => ({ ...oldRecord('dormitory'), menuSnapshot: old.pages });
+  deps.fetch = async () => next;
+  deps.render = async () => assert.fail('past corrections alone must not render');
+  deps.post = async () => assert.fail('past corrections alone must not publish');
+  assert.equal((await runWeeklyAt(range, 'dormitory', false, false, deps, '2026-09-23'))[0]!.status, 'skipped');
+});
+test('forced replacement refreshes and highlights Tuesday and Wednesday without future additions', async () => {
+  const old = fullWeek();
+  const next = structuredClone(old);
+  next.pages[0]!.days[1]!.sections[0]!.items = ['화요일 수정본'];
+  next.pages[0]!.days[2]!.sections[1]!.items = ['수요일 수정본'];
+  const deps = runDeps([]);
+  deps.published = async () => ({ ...oldRecord('dormitory'), menuSnapshot: old.pages });
+  deps.fetch = async () => next;
+  deps.render = async value => {
+    assert.deepEqual(value.pages, next.pages);
+    assert.deepEqual(value.menuChanges, [
+      { kind: 'dormitory', date: range.dates[1], section: 'breakfast', indexes: [0] },
+      { kind: 'dormitory', date: range.dates[2], section: 'lunch', indexes: [0] },
+    ]);
+    return { images: ['a', 'b'] };
+  };
+  assert.equal((await runWeeklyAt(range, 'dormitory', false, true, deps, '2026-09-23'))[0]!.status, 'published');
 });
 test('Friday additions through Friday are ignored, but through Sunday warrant a post', () => {
   const old = fullWeek();
@@ -440,7 +470,7 @@ test('lock recheck rejects images whose changed-menu highlights no longer match 
   assert.ok(!s.events.includes('publish'));
 });
 
-test('automatic replacement saves exactly the frozen rendered snapshot, then skips next run', async () => {
+test('automatic replacement saves exactly the latest rendered snapshot, then skips next run', async () => {
   const s = services(); const old = fullWeek();
   await postWeekly(old, ['a', 'b'], false, s.storage, s.instagram, async () => {});
   const latest = structuredClone(old);
@@ -456,7 +486,8 @@ test('automatic replacement saves exactly the frozen rendered snapshot, then ski
   const saved = (await publishedWeekly(s.storage, range.week, 'dormitory'))!;
   assert.deepEqual(saved.menuSnapshot, rendered!.pages);
   assert.equal(saved.caption, rendered!.caption);
-  assert.equal(saved.menuSnapshot![0]!.days[0]!.sections[0]!.items[0], '기존 메뉴');
+  assert.equal(saved.menuSnapshot![0]!.days[1]!.sections[0]!.items[0], '최신 식단');
+  assert.ok(rendered!.menuChanges?.some(change => change.date === range.dates[1] && change.section === 'breakfast'));
   assert.equal(saved.pendingNotifications!.length, 1);
   assert.equal((await runWeeklyAt(range, 'dormitory', false, false, deps, '2026-09-24'))[0]!.status, 'skipped');
 });
@@ -470,13 +501,19 @@ test('force replacement renders the update notice even for a legacy record', asy
   };
   assert.equal((await runWeeklyAt(range, 'combined', false, true, deps))[0]!.status, 'published');
 });
-test('omitted restaurant keeps past cells empty while adding future menus', () => {
+test('previously omitted restaurant includes latest past and future menus', () => {
   const next = data();
   next.pages[1]!.days.push({ date: '2026-09-25', sections: [{ key: 'lunch', label: 'Lunch', items: ['새 식단'] }] });
   const old = [next.pages[0]!];
   const prepared = prepareWeekly(next, old, '2026-09-23', true)!;
-  assert.deepEqual(prepared.pages[1]!.days[0]!.sections[0]!.items, []);
+  assert.deepEqual(prepared.pages[1]!.days[0]!.sections[0]!.items, ['비빔밥']);
   assert.deepEqual(prepared.pages[1]!.days[1]!.sections[0]!.items, ['새 식단']);
+});
+test('replacement does not restore old menus from a restaurant absent in the latest data', () => {
+  const old = data();
+  const next = structuredClone(old);
+  next.pages = [next.pages[0]!];
+  assert.deepEqual(prepareWeekly(next, old.pages, '2026-09-23', true)!.pages, next.pages);
 });
 test('malformed stored snapshots fail before any automatic publication', async () => {
   const s = services();
