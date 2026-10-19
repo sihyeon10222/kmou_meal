@@ -23,7 +23,7 @@ test('메뉴 HTML escape, 공통 헤더, 부분 empty 영역 유지', async () =
   assert.ok(html.includes('&lt;script&gt;'));
   assert.equal($('.dinner .menu').text(), '등록된 식단 없음');
   assert.equal($('h1').text(), '기숙사');
-  assert.equal($('.date').text(), '9/18(금)');
+  assert.equal($('.date').text(), '9/18(Fri)');
   assert.equal($('footer').length, 0);
   assert.equal($('.eyebrow').length, 0);
 });
