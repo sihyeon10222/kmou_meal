@@ -1,0 +1,32 @@
+.sheet { --page-margin: 24px; --header-inset: 64px; --header-gap: 64px; --meal-radius: var(--radius); height: 1440px; position: relative; overflow: hidden; }
+header { position: absolute; top: var(--header-inset); left: var(--header-inset); right: var(--header-inset); }
+.heading-row { display: flex; align-items: baseline; gap: var(--header-inset); }
+h1 { flex-shrink: 0; font-size: 72px; line-height: 1.2; letter-spacing: -2px; margin: 0; font-weight: 800; white-space: nowrap; }
+.range { font-size: 64px; line-height: 1.2; font-weight: 400; letter-spacing: -1px; color: var(--muted); text-align: left; white-space: nowrap; }
+.update-notice { position: absolute; top: 100%; left: 0; right: 0; margin: 0; font-size: 28px; line-height: 1.35; color: var(--changed); font-weight: 650; white-space: nowrap; }
+.calendar { position: absolute; bottom: var(--page-margin); left: var(--page-margin); right: var(--page-margin); display: grid; grid-template-columns: repeat(var(--days), minmax(0, 1fr)); }
+.day { display: grid; grid-template-rows: 48px repeat(var(--rows), minmax(0, 1fr)); row-gap: 24px; min-width: 0; min-height: 0; height: 100%; }
+.day-title { display: flex; align-items: center; justify-content: center; }
+.weekday { font-size: 28px; line-height: 1.2; font-weight: 600; color: var(--ink); }
+.day.weekend .weekday { color: var(--blue); }
+.cell { position: relative; min-height: 0; min-width: 0; padding: 32px 16px 16px; background: transparent; }
+.day:first-child .cell { border-radius: var(--meal-radius) 0 0 var(--meal-radius); }
+.day:last-child .cell { border-radius: 0 var(--meal-radius) var(--meal-radius) 0; }
+.day:not(:last-child) .cell::after { content: ''; position: absolute; right: 0; top: 16px; bottom: 16px; width: 1px; background: #183d4414; }
+.day:not(:last-child) .cell.dinner::after { background: rgb(255 255 255 / .28); }
+
+h2 { position: absolute; top: -14px; left: 16px; font-size: 20px; line-height: 28px; height: 28px; margin: 0; z-index: 1; }
+.menu { font-size: 30px; line-height: 1.4; font-weight: 500; letter-spacing: 0; }
+p { margin: 0 0 .25em; word-break: keep-all; overflow-wrap: normal; }
+p:last-child { margin-bottom: 0; }
+.menu-part, .no-break { white-space: nowrap; }
+.menu-part.can-wrap { white-space: normal; overflow-wrap: anywhere; }
+.empty { opacity: .8; white-space: nowrap; font-size: min(1em, 24px); text-align: center; }
+
+.meal-surfaces { position: absolute; inset: 0; pointer-events: none; }
+.meal-surface { position: absolute; border-radius: var(--radius); }
+
+.panorama .empty { font-size: 30px; }
+.changed-menu { color: var(--changed); }
+
+.range.updated-range { color: var(--changed); }

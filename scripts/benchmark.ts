@@ -4,11 +4,11 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
-import * as weekly from '../src/render-weekly.js';
-import { createStoryRenderer } from '../src/render-story.js';
-import { createResidenceMenuFetcher } from '../src/fetch-menu.js';
-import { storyDesignData } from '../tests/fixtures/story-design.js';
-import { weeklyDesignData } from '../tests/fixtures/weekly-design.js';
+import * as weekly from '../src/backend/rendering/weekly-renderer.js';
+import { createStoryRenderer } from '../src/backend/rendering/story-renderer.js';
+import { createResidenceMenuFetcher } from '../src/backend/integrations/kmou/residence.js';
+import { storyDesignData } from '../fixtures/design/story-design.js';
+import { weeklyDesignData } from '../fixtures/design/weekly-design.js';
 // Fixed fixtures only: no school, Storage, Instagram or AI requests.
 // One warm-up followed by five measured sequential batches.
 const label = process.argv[2] ?? 'current';
