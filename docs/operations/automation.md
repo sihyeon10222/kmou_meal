@@ -64,11 +64,13 @@ https://api.github.com/repos/sihyeon10222/kmou_meal/actions/workflows/weekly.yml
 
 - **Daily KMOU Stories**: `restaurant`, `meal`, `date`, `preview`, `art`. `restaurant=all`, `meal=all`이면 네 식당 전체를 실행합니다. `art` 기본값은 `generate`이며, Actions의 미리보기에서도 실제 음식 그림을 생성합니다. 반복 디자인 확인에는 `cache`, 장식 제외에는 `off`를 선택합니다.
 - **KMOU Weekly Feed**: `restaurant` (`all`, `combined`, `badaro`, `dormitory`), `date` 또는 `week`, `preview`, `force`.
+- **Validate KMOU**: 입력값 없이 **Run workflow**로 `typecheck → lint → test → build` 전체 검증을 실행합니다. `main` push와 pull request의 자동 검증도 유지합니다.
 
 Daily의 preview 기본값은 false, Weekly의 기본값은 true입니다. 실제 게시하려면 preview를 해제합니다. 동일 계정의 게시 workflow는 하나의 대기열을 공유합니다.
 
 ```bash
 gh workflow run daily.yml --ref main -f preview=true -f date=2026-09-21
 gh workflow run weekly.yml --ref main -f restaurant=all -f preview=true -f week=2026-W39
+gh workflow run ci.yml --ref main
 ```
 

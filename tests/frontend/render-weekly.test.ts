@@ -350,22 +350,22 @@ test('weekly font grouping minimizes day-weighted shrinkage with deterministic t
     for (const { caps, sizes } of cases) {
       const data = weeklyDesignData('dormitory', 'normal');
       data.pages[0]!.days.forEach((day, index) => {
-        day.sections[0]!.items = caps[index] === null ? [] : ['돼지불고기'];
+        day.sections[0]!.items = caps[index] === null ? [] : ['밥'];
       });
       await page.setContent(await weeklyHtml(data.pages[0]!));
       await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
-      // Use the same DOM text geometry as layoutWeekly: canvas metrics can
-      // differ at small font sizes across platforms and admit the next size.
+      // Exercise real DOM overflow with a 5em inline box, independently of
+      // font metrics. Each 1px size step adds 5px, beyond the 1px fit tolerance.
       await page.evaluate(async limits => {
         await document.fonts.ready;
         [...document.querySelectorAll('.day')].forEach((day, index) => {
           const cap = limits[index];
           if (cap === null) return;
           const menu = day.querySelector<HTMLElement>('.menu')!;
-          menu.style.fontSize = `${cap}px`;
-          const text = document.createRange();
-          text.selectNodeContents(menu.querySelector('.menu-part')!);
-          menu.style.width = `${text.getBoundingClientRect().width + 0.2}px`;
+          const part = menu.querySelector<HTMLElement>('.menu-part')!;
+          part.style.display = 'inline-block';
+          part.style.width = '5em';
+          menu.style.width = `${cap! * 5}px`;
         });
       }, caps);
       await page.evaluate(layoutWeekly);
