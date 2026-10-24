@@ -354,18 +354,18 @@ test('weekly font grouping minimizes day-weighted shrinkage with deterministic t
       });
       await page.setContent(await weeklyHtml(data.pages[0]!));
       await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
-      // Constrain actual text widths to exercise exact integer fit boundaries,
-      // without depending on which particular Korean names happen to fit them.
+      // Use the same DOM text geometry as layoutWeekly: canvas metrics can
+      // differ at small font sizes across platforms and admit the next size.
       await page.evaluate(async limits => {
         await document.fonts.ready;
-        const context = document.createElement('canvas').getContext('2d')!;
         [...document.querySelectorAll('.day')].forEach((day, index) => {
           const cap = limits[index];
           if (cap === null) return;
           const menu = day.querySelector<HTMLElement>('.menu')!;
-          const style = getComputedStyle(menu);
-          context.font = `${style.fontWeight} ${cap}px ${style.fontFamily}`;
-          menu.style.width = `${context.measureText(menu.textContent!).width + 0.2}px`;
+          menu.style.fontSize = `${cap}px`;
+          const text = document.createRange();
+          text.selectNodeContents(menu.querySelector('.menu-part')!);
+          menu.style.width = `${text.getBoundingClientRect().width + 0.2}px`;
         });
       }, caps);
       await page.evaluate(layoutWeekly);
