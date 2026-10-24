@@ -59,9 +59,30 @@ export async function layoutWeekly(): Promise<void> {
   const rowGap = parseFloat(getComputedStyle(days[0]!).rowGap);
   const available = calendar.getBoundingClientRect().height - dayTitleHeight - rowGap * rowCount;
   const overflow = () => new Error('주간 메뉴가 최소 글자 크기에서도 영역을 초과합니다.');
-  const setSize = (cells: HTMLElement[], size: number) => cells.forEach(cell => {
+  const setSize = (cell: HTMLElement, size: number) => {
     cell.querySelector<HTMLElement>('.menu')!.style.fontSize = `${size}px`;
-  });
+  };
+  // Empty notices keep their own typography and never shrink a populated day.
+  // Each split is between distinct measured caps, so equal caps stay together.
+  const chooseSizes = (caps: (number | null)[]) => {
+    const sorted = caps.filter((cap): cap is number => cap !== null).sort((a, b) => a - b);
+    const small = sorted[0] ?? 24;
+    let regular = small;
+    let smallCount = 0;
+    let loss = sorted.reduce((sum, cap) => sum + cap - regular, 0);
+    for (let split = 1; split < sorted.length; split++) {
+      const candidate = sorted[split]!;
+      if (candidate === sorted[split - 1] || candidate - small < 3) continue;
+      const candidateLoss = sorted.reduce((sum, cap, index) => sum + cap - (index < split ? small : candidate), 0);
+      if (candidateLoss < loss || (candidateLoss === loss
+        && (split < smallCount || (split === smallCount && candidate > regular)))) {
+        regular = candidate;
+        smallCount = split;
+        loss = candidateLoss;
+      }
+    }
+    return caps.map(cap => cap === null ? 24 : cap < regular ? small : regular);
+  };
   const fitsWidth = (cell: HTMLElement) => {
     const menu = cell.querySelector<HTMLElement>('.menu')!;
     const box = menu.getBoundingClientRect();
@@ -82,8 +103,8 @@ export async function layoutWeekly(): Promise<void> {
       return copy;
     });
     try {
-      setSize(copies, 18);
-      let needsWrap = false;
+      copies.forEach(copy => setSize(copy, copy.querySelector('.empty') ? 24 : 18));
+      const needsWrap = copies.map(() => false);
       copies.forEach((copy, index) => {
         const menu = copy.querySelector<HTMLElement>('.menu')!;
         const originalParts = cells[index]!.querySelectorAll('.menu-part');
@@ -91,26 +112,30 @@ export async function layoutWeekly(): Promise<void> {
           if (part.getBoundingClientRect().width > menu.getBoundingClientRect().width + 1) {
             part.classList.add('can-wrap');
             originalParts[partIndex]!.classList.add('can-wrap');
-            needsWrap = true;
+            needsWrap[index] = true;
           }
         });
       });
       if (!copies.every(fitsWidth)) throw overflow();
       const minimum = Math.max(...copies.map(copy => copy.getBoundingClientRect().height));
-      // An ordinary menu name may wrap only when it cannot fit at the minimum.
-      let targetSize = needsWrap ? 18 : cells.every(cell => cell.querySelector('.empty')) ? 24 : 30;
-      for (; targetSize >= 18; targetSize--) {
-        setSize(copies, targetSize);
-        if (copies.every(fitsWidth)) break;
-      }
-      if (targetSize < 18) throw overflow();
+      // Only the day containing an unavoidably long name is pinned to 18px.
+      const widthCaps = copies.map((copy, index) => {
+        if (copy.querySelector('.empty')) return null;
+        for (let size = needsWrap[index] ? 18 : 30; size >= 18; size--) {
+          setSize(copy, size);
+          if (fitsWidth(copy)) return size;
+        }
+        throw overflow();
+      });
+      const targetSizes = chooseSizes(widthCaps);
+      copies.forEach((copy, index) => setSize(copy, targetSizes[index]!));
       const target = Math.max(...copies.map(copy => copy.getBoundingClientRect().height));
       const content = Math.max(...copies.map(copy => {
         const style = getComputedStyle(copy);
         return copy.getBoundingClientRect().height - parseFloat(style.paddingTop)
           - parseFloat(style.paddingBottom) - parseFloat(style.borderBottomWidth);
       }));
-      return { minimum, target, targetSize, content };
+      return { minimum, target, widthCaps, content };
     } finally { copies.forEach(copy => copy.remove()); }
   });
 
@@ -148,12 +173,29 @@ export async function layoutWeekly(): Promise<void> {
     return cell.querySelector<HTMLElement>('.menu')!.getBoundingClientRect().bottom <= contentBottom + 0.1;
   };
   rows.forEach((cells, index) => {
-    let size = measurements[index]!.targetSize;
-    for (; size >= 18; size--) {
-      setSize(cells, size);
-      if (cells.every(cell => fitsWidth(cell) && fitsHeight(cell))) break;
-    }
-    if (size < 18) throw overflow();
+    // Recompute caps after allocating the shared row height: a dense day may
+    // need the small mode even when all its individual dish names are short.
+    const caps = cells.map((cell, day) => {
+      const widthCap = measurements[index]!.widthCaps[day]!;
+      if (widthCap === null) {
+        setSize(cell, 24);
+        if (!fitsWidth(cell) || !fitsHeight(cell)) throw overflow();
+        return null;
+      }
+      for (let size = widthCap; size >= 18; size--) {
+        setSize(cell, size);
+        if (fitsWidth(cell) && fitsHeight(cell)) return size;
+      }
+      throw overflow();
+    });
+    const sizes = chooseSizes(caps);
+    const regular = Math.max(...sizes.filter((_, day) => caps[day] !== null));
+    cells.forEach((cell, day) => {
+      setSize(cell, sizes[day]!);
+      cell.dataset.fontMode = caps[day] === null ? 'empty' : sizes[day]! < regular ? 'small' : 'normal';
+      cell.dataset.fontCap = caps[day] === null ? '' : String(caps[day]);
+      if (!fitsWidth(cell) || !fitsHeight(cell)) throw overflow();
+    });
   });
 
   const table = calendar.getBoundingClientRect();

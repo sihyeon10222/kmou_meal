@@ -214,6 +214,9 @@ test('all four restaurants keep balanced margins and shared meal rows in every d
               const style = getComputedStyle(cell);
               return { ...rect(cell), menu: rect(menu), heading: heading ? rect(heading) : null,
                 emptyFont: cell.querySelector('.empty') ? getComputedStyle(cell.querySelector('.empty')!).fontSize : null,
+                mode: (cell as HTMLElement).dataset.fontMode,
+                cap: Number((cell as HTMLElement).dataset.fontCap),
+                itemFonts: [...menu.querySelectorAll('p:not(.empty)')].map(item => parseFloat(getComputedStyle(item).fontSize)),
                 font: parseFloat(getComputedStyle(menu).fontSize), color: getComputedStyle(menu).color,
                 line: parseFloat(getComputedStyle(menu).lineHeight), spacing: getComputedStyle(menu).letterSpacing,
                 background: style.backgroundColor, padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
@@ -259,6 +262,17 @@ test('all four restaurants keep balanced margins and shared meal rows in every d
           assert.ok(layout.notice.bottom <= layout.weekday.top);
           close(layout.notice.top - layout.headingBottom, layout.weekday.top - layout.notice.bottom, 'notice fits centrally inside existing gap');
         }
+        for (let row = 0; row < layout.days[0]!.cells.length; row++) {
+          const populated = layout.days.map(day => day.cells[row]!).filter(cell => !cell.emptyFont);
+          const sizes = [...new Set(populated.map(cell => cell.font))].sort((a, b) => a - b);
+          assert.ok(sizes.length <= 2, 'at most two menu sizes per meal row');
+          if (sizes.length === 2) assert.ok(sizes[1]! - sizes[0]! >= 3, 'two modes differ by at least 3px');
+          for (const cell of populated) {
+            assert.equal(cell.mode, cell.font === sizes.at(-1) ? 'normal' : 'small');
+            assert.ok(cell.font <= cell.cap, 'group size never exceeds the individual fit');
+            assert.ok(cell.itemFonts.every(font => font === cell.font), 'one size within each day/meal');
+          }
+        }
         for (const day of layout.days) {
           assert.equal(day.cells.length, kind === 'snack' ? 4 : 3);
           close(day.width, layout.days[0]!.width, 'day width');
@@ -266,7 +280,6 @@ test('all four restaurants keep balanced margins and shared meal rows in every d
             const reference = layout.days[0]!.cells[row]!;
             close(cell.top, reference.top, 'row top');
             close(cell.bottom, reference.bottom, 'row bottom');
-            assert.equal(cell.font, reference.font, 'one menu font per meal row');
             assert.equal(cell.labelVisible, day === layout.days[0], 'each meal label appears only once across the row');
             assert.ok(cell.font >= 18 && cell.font <= 30);
             close(cell.line, cell.font * 1.4, 'menu line height');
@@ -288,8 +301,10 @@ test('all four restaurants keep balanced margins and shared meal rows in every d
               else assert.equal(part.wraps, false, 'ordinary names stay intact');
             }
             assert.equal(cell.background, 'rgba(0, 0, 0, 0)', 'columns share the row surface');
-            if (cell.emptyFont && ['dormitory', 'badaro'].includes(kind)) assert.equal(cell.emptyFont, '30px');
-            else if (cell.emptyFont) assert.ok(parseFloat(cell.emptyFont) <= 24);
+            if (cell.emptyFont) {
+              assert.equal(cell.mode, 'empty', 'empty notices do not participate in font grouping');
+              assert.equal(cell.emptyFont, ['dormitory', 'badaro'].includes(kind) ? '30px' : '24px');
+            }
             if (scenario === 'empty') assert.ok(cell.font <= 24);
           }
         }
@@ -300,9 +315,69 @@ test('all four restaurants keep balanced margins and shared meal rows in every d
         }
         if (scenario === 'dense') assert.ok(layout.days[0]!.cells[1]!.height > layout.days[0]!.cells[0]!.height * 2);
         if (scenario === 'long') assert.ok(layout.days.some(day => day.cells.some(cell => cell.parts.some(part => part.fallback))));
+        if (scenario === 'one-long-day' || scenario === 'two-size') {
+          const cells = layout.days.map(day => day.cells[0]!);
+          const smallDays = scenario === 'two-size' ? 2 : 1;
+          assert.ok(cells.slice(0, smallDays).every(cell => cell.mode === 'small'));
+          assert.ok(cells.slice(smallDays).every(cell => cell.mode === 'normal' && cell.font === 30));
+          assert.equal(new Set(cells.slice(0, smallDays).map(cell => cell.font)).size, 1);
+        }
+        if (scenario === 'near-size') {
+          const cells = layout.days.map(day => day.cells[0]!);
+          assert.equal(new Set(cells.map(cell => cell.font)).size, 1, '1–2px differences use a single mode');
+          assert.ok(cells[0]!.font >= 28);
+        }
       });
     }
   } finally { await browser.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('weekly font grouping minimizes day-weighted shrinkage with deterministic ties', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 2160, height: 1440 } });
+    const cases: { caps: (number | null)[]; sizes: (number | null)[] }[] = [
+      { caps: [22, 24, 30, 30, 30, 30, 30], sizes: [22, 22, 30, 30, 30, 30, 30] },
+      { caps: [30, 22, 30, 24, 30, 30, 30], sizes: [30, 22, 30, 22, 30, 30, 30] },
+      { caps: [28, 29, 30, 30, 30, 30, 30], sizes: [28, 28, 28, 28, 28, 28, 28] },
+      { caps: [27, 30, 30, 30, 30, 30, 30], sizes: [27, 30, 30, 30, 30, 30, 30] },
+      { caps: [22, 22, 24, 30, 30, null, null], sizes: [22, 22, 22, 30, 30, null, null] },
+      { caps: [18, 21, 24, null, null, null, null], sizes: [18, 21, 21, null, null, null, null] },
+      { caps: [24, 24, 24, 24, 24, 24, 24], sizes: [24, 24, 24, 24, 24, 24, 24] },
+      { caps: [null, 30, null, null, null, null, null], sizes: [null, 30, null, null, null, null, null] },
+      { caps: [null, null, null, null, null, null, null], sizes: [null, null, null, null, null, null, null] },
+    ];
+    for (const { caps, sizes } of cases) {
+      const data = weeklyDesignData('dormitory', 'normal');
+      data.pages[0]!.days.forEach((day, index) => {
+        day.sections[0]!.items = caps[index] === null ? [] : ['돼지불고기'];
+      });
+      await page.setContent(await weeklyHtml(data.pages[0]!));
+      await page.addScriptTag({ content: 'globalThis.__name ??= value => value;' });
+      // Constrain actual text widths to exercise exact integer fit boundaries,
+      // without depending on which particular Korean names happen to fit them.
+      await page.evaluate(async limits => {
+        await document.fonts.ready;
+        const context = document.createElement('canvas').getContext('2d')!;
+        [...document.querySelectorAll('.day')].forEach((day, index) => {
+          const cap = limits[index];
+          if (cap === null) return;
+          const menu = day.querySelector<HTMLElement>('.menu')!;
+          const style = getComputedStyle(menu);
+          context.font = `${style.fontWeight} ${cap}px ${style.fontFamily}`;
+          menu.style.width = `${context.measureText(menu.textContent!).width + 0.2}px`;
+        });
+      }, caps);
+      await page.evaluate(layoutWeekly);
+      const result = await page.locator('.day').evaluateAll(days => days.map(day => {
+        const cell = day.querySelector<HTMLElement>('.cell')!;
+        return { cap: cell.dataset.fontMode === 'empty' ? null : Number(cell.dataset.fontCap),
+          size: cell.dataset.fontMode === 'empty' ? null : parseFloat(getComputedStyle(cell.querySelector('.menu')!).fontSize) };
+      }));
+      assert.deepEqual(result.map(cell => cell.cap), caps);
+      assert.deepEqual(result.map(cell => cell.size), sizes);
+    }
+  } finally { await browser.close(); }
 });
 
 test('plus add-ons can move to their own line without splitting the main dish', async () => {

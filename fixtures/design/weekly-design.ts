@@ -4,7 +4,7 @@ import { weeklyRange } from '../../src/shared/dates.js';
 import type { WeeklyData, WeeklyPageKind } from '../../src/shared/contracts/weekly.js';
 
 export const designKinds = ['dormitory', 'badaro', 'snack', 'teacher'] as const;
-export const designScenarios = ['normal', 'empty', 'partial', 'dense', 'long', 'repost'] as const;
+export const designScenarios = ['normal', 'empty', 'partial', 'dense', 'long', 'repost', 'one-long-day', 'two-size', 'near-size'] as const;
 export type DesignScenario = typeof designScenarios[number];
 
 // Representative design samples, not a live school menu.
@@ -49,6 +49,23 @@ export function weeklyDesignData(pageKind: WeeklyPageKind, scenario: DesignScena
   if (scenario === 'long') {
     days[0]!.sections[0]!.items = ['바지락순두부찌개', '치킨치즈더블돈가스', '메밀소바+유부초밥', '부대찌개라면+공깃밥'];
     days[1]!.sections[1]!.items = ['구운버섯과채소를곁들인수제함박스테이크정식', '추석연휴(9/24~27)'];
+  }
+  if (scenario === 'one-long-day' || scenario === 'two-size' || scenario === 'near-size') {
+    // Short days can retain 30px; only the deliberately long days need reducing.
+    const shortMenus = pageKind === 'snack'
+      ? [['돈까스', '생선까스', '치킨까스'], ['계란라면', '치즈라면'], ['떡볶이', '만두'], ['백미밥', '미역국', '잡채', '배추김치']]
+      : [['백미밥', '미역국', '계란말이', '배추김치'], ['백미밥', '돼지불고기', '잡채', '배추김치'], ['백미밥', '감자수제비', '두부조림', '배추김치']];
+    days.forEach(day => day.sections.forEach((section, index) => { section.items = shortMenus[index]!.slice(); }));
+    const panorama = kind !== 'combined';
+    days[0]!.sections[0]!.items[0] = scenario === 'near-size'
+      ? panorama ? '매콤한치즈닭갈비덮밥' : '김치볶음밥&김'
+      : panorama ? '매콤한돼지고기김치두루치기' : '매콤돼지갈비찜덮밥';
+    if (scenario === 'two-size') {
+      days[1]!.sections[0]!.items[0] = panorama ? '수제치즈함박스테이크정식' : '바지락순두부찌개';
+      // A different meal row groups different weekdays independently.
+      days[2]!.sections[1]!.items[0] = days[0]!.sections[0]!.items[0]!;
+      days[3]!.sections[1]!.items[0] = days[1]!.sections[0]!.items[0]!;
+    }
   }
   const updatedOn = scenario === 'repost' ? '2026-10-08' : undefined;
   const result: WeeklyData = { kind, week: range.week, monday: range.monday, pages: [{ kind: pageKind, days }],

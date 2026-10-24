@@ -39,7 +39,7 @@ kmou_meal/
 │   │   │   └── styles/                 # base·snack·dormitory·teacher
 │   │   ├── weekly/
 │   │   │   ├── html.ts
-│   │   │   ├── layout.ts
+│   │   │   ├── layout.ts               # 요일별 두 단계 글자 크기·공통 행 높이
 │   │   │   └── styles.css
 │   │   ├── shared/
 │   │   │   ├── design.css              # 공통 디자인 토큰
@@ -106,6 +106,7 @@ kmou_meal/
 - 외부 서비스가 추가되면 `backend/integrations/<서비스>`에 구현하고, 실행에 필요한 연결은 bootstrap 또는 해당 feature에서 조립합니다.
 - 공통 데이터 형태는 `shared/contracts`에 둡니다. HTML에 사용할 데이터에도 서버 인증값이나 클라이언트 객체를 포함하지 않습니다.
 - AI 요청은 Cloudflare 연동, 캐시는 `rendering/art/cache.ts`, 픽셀 처리는 `image-processing.ts`, 합성은 `bubble-compositor.ts`로 나눕니다.
+- Story 렌더러는 AI 장식 결과를 `onArtReport`로 실행 계층에 전달합니다. 실행 계층은 게시 결과와 장식 결과를 함께 `.run.json`과 Actions Summary에 기록하며, 장식 실패와 실제 게시 실패를 구분합니다.
 - 디자인 샘플은 `fixtures/design`, 실제 응답·오류 재현 자료는 `tests/fixtures`에 둡니다. 개발 스크립트에서 테스트 도우미를 가져오지 않습니다.
 - 참고 이미지는 `docs/design-references`, 실행에 필요한 이미지는 `frontend/assets`에 둡니다. 폰트 이동 시 라이선스를 함께 보존합니다.
 

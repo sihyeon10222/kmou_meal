@@ -5,6 +5,7 @@ import { resolveRun } from './modes.js';
 import type { RunMode, StoryMode, StoryRenderData } from '../../../shared/contracts/story.js';
 import { dormitoryStory, coopStory } from './data.js';
 import { PublishedStoryError } from './post.js';
+import type { StoryArtReport } from '../../rendering/art/decorate.js';
 
 export interface RunResult {
   mode: StoryMode;
@@ -15,6 +16,7 @@ export interface RunResult {
   warning?: string;
   mediaId?: string;
   emptyMenu?: boolean;
+  art?: StoryArtReport;
   stage?: 'fetch' | 'render' | 'publish';
 }
 export interface RunDependencies {

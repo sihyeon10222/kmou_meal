@@ -15,12 +15,27 @@ export function cloudflareConfig(env: NodeJS.ProcessEnv = process.env): Cloudfla
 
 export function createFoodAi(config: CloudflareConfig, request: typeof fetch = fetch): FoodAi {
   const run = async (model: string, body: BodyInit, json: boolean, timeout: number): Promise<unknown> => {
+    const operation = model === FOOD_IMAGE_MODEL ? '음식 이미지 생성' : '메뉴 선택';
     const response = await request(`https://api.cloudflare.com/client/v4/accounts/${config.accountId}/ai/run/${model}`, {
       method: 'POST', headers: { Authorization: `Bearer ${config.apiToken}`, ...(json ? { 'Content-Type': 'application/json' } : {}) },
       body, signal: AbortSignal.timeout(timeout),
     });
     // Do not repeat expensive generation on an ambiguous timeout or expose provider request details.
-    if (!response.ok) { await response.body?.cancel(); throw new Error(`Cloudflare AI 요청 실패 (HTTP ${response.status})`); }
+    if (!response.ok) {
+      // Provider messages can contain submitted data. Keep only numeric error codes and the request ID.
+      const failure = await response.json().catch(() => undefined) as { errors?: unknown } | undefined;
+      const codes = Array.isArray(failure?.errors) ? failure.errors.flatMap((error: unknown) => {
+        if (!error || typeof error !== 'object' || !('code' in error)) return [];
+        return typeof error.code === 'number' && Number.isSafeInteger(error.code) ? [error.code] : [];
+      }).slice(0, 5) : [];
+      const ray = response.headers.get('cf-ray');
+      const details = [
+        `HTTP ${response.status}`, `model ${model}`,
+        ...(codes.length ? [`code ${codes.join(', ')}`] : []),
+        ...(ray && /^[a-f\d]{16,32}(?:-[a-z]{3})?$/i.test(ray) ? [`cf-ray ${ray}`] : []),
+      ];
+      throw new Error(`Cloudflare AI ${operation} 요청 실패 (${details.join('; ')})`);
+    }
     const payload = await response.json() as { success?: boolean; result?: unknown };
     if (payload.success === false || !payload.result) throw new Error('Cloudflare AI 응답에 결과가 없습니다.');
     return payload.result;

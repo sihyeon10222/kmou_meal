@@ -7,7 +7,7 @@ import type { Page } from 'playwright';
 import { createRenderBrowser } from './browser.js';
 import type { StoryRenderData, Restaurant } from '../../shared/contracts/story.js';
 import { measureStoryArtLayout } from './art/measure-layout.js';
-import type { StoryArtDecorator } from './art/decorate.js';
+import type { StoryArtDecorator, StoryArtReport, StoryArtResult } from './art/decorate.js';
 import { safeError } from '../support/safe-error.js';
 
 const STORY_SIZE = { width: 1080, height: 1920 };
@@ -40,7 +40,10 @@ async function fitMenusAndValidateLayout(page: Page): Promise<void> {
 }
 
 /** Reuses one browser and template snapshot for sequential Stories in a batch. */
-export function createStoryRenderer(options: { art?: StoryArtDecorator } = {}): StoryRenderer {
+export function createStoryRenderer(options: {
+  art?: StoryArtDecorator;
+  onArtReport?: (data: StoryRenderData, report: StoryArtReport) => void;
+} = {}): StoryRenderer {
   const browser = createRenderBrowser('Story');
   let assets: Promise<StoryTemplateAssets> | undefined;
   const layouts = new Map<Restaurant, Promise<string>>();
@@ -69,14 +72,22 @@ export function createStoryRenderer(options: { art?: StoryArtDecorator } = {}): 
         let decorated: Buffer | undefined;
         if (options.art) {
           const base = await page.screenshot({ type: 'png' });
+          let result: StoryArtResult;
           try {
-            const result = await options.art.decorate(data, await measureStoryArtLayout(page), base);
+            result = await options.art.decorate(data, await measureStoryArtLayout(page), base);
+          } catch (error) {
+            result = { report: { status: 'failed', reason: safeError(error), selectionCalls: 0, imageCalls: 0, cacheHits: 0 } };
+          }
+          options.onArtReport?.(data, result.report);
+          decorated = result.image;
+          const message = `Story AI ${data.request.mode}: ${result.report.status}${result.report.reason ? ` (${result.report.reason})` : ''}`;
+          if (result.report.status === 'failed') console.warn(message);
+          else console.info(message);
+          try {
             await writeFile(`${stem}.art.json`, JSON.stringify(result.report, null, 2));
-            decorated = result.image;
-            console.info(`Story AI ${data.request.mode}: ${result.report.status}${result.report.reason ? ` (${result.report.reason})` : ''}`);
             if (decorated) await page.screenshot({ path: `${stem}.base.jpg`, type: 'jpeg', quality: JPEG_QUALITY });
           } catch (error) {
-            console.warn(`Story AI 생략: ${safeError(error)}`);
+            console.warn(`Story AI 진단 파일 저장 실패: ${safeError(error)}`);
           }
         }
         if (decorated) await writeFile(`${stem}.jpg`, decorated);

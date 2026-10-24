@@ -1,16 +1,17 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
 import sharp from 'sharp';
+import { load } from 'cheerio';
 import { createStoryRenderer } from '../../src/backend/rendering/story-renderer.js';
 import { createStoryArt } from '../../src/backend/rendering/art/decorate.js';
 import { storyDesignData, storyDesignScenarios } from '../../fixtures/design/story-design.js';
 import { createWeeklyRenderer } from '../../src/backend/rendering/weekly-renderer.js';
-import { designKinds, weeklyDesignData } from '../../fixtures/design/weekly-design.js';
+import { designKinds, designScenarios, weeklyDesignData } from '../../fixtures/design/weekly-design.js';
 
 const root = resolve('output/weekly-redesign');
-const scenarios = ['normal', 'empty', 'repost'] as const;
+const scenarios = designScenarios;
 const names = { dormitory: '기숙사', badaro: '승선생활관', snack: '학식', teacher: '교직원식당' };
-const labels = { normal: '일반 식단', empty: '빈 식단', repost: '재게시' };
+const labels = { normal: '일반 식단', empty: '빈 식단', repost: '재게시', partial: '일부 빈 식단', dense: '분량 편차', long: '긴 메뉴·추가 구성', 'one-long-day': '한 요일만 긴 메뉴', 'two-size': '일반·작은 글자 두 단계', 'near-size': '1~2px 차이는 한 크기로 통일' };
 const sections: string[] = [];
 const revision = Date.now();
 await mkdir(root, { recursive: true });
@@ -26,9 +27,18 @@ try {
       const main = result.master ?? result.images[0]!;
       const path = (file: string) => `${relative(root, file)}?v=${revision}`;
       const panorama = Boolean(result.master);
+      const $ = load(await readFile(resolve(root, scenario, `${data.week}-${kind}-weekly.html`), 'utf8'));
+      const fontRows = data.pages[0]!.days[0]!.sections.map((section, row) => {
+        const sizes = $('.day').map((_, day) => {
+          const cell = $(day).find('.cell').eq(row);
+          const size = cell.find('.menu').attr('style')?.match(/font-size:\s*(\d+)px/)?.[1];
+          return `${$(day).find('.weekday').text()} ${cell.attr('data-font-mode') === 'empty' ? '빈 식단' : `${size}px`}`;
+        }).get();
+        return `${section.label}: ${sizes.join(' · ')}`;
+      });
       const thumbnail = await sharp(main).resize(panorama ? 1080 : 528, panorama ? 720 : 704).png().toBuffer();
       previews.push({ input: thumbnail, left: index < 2 ? 24 : 24 + (index - 2) * 552, top: index < 2 ? 24 + index * 744 : 1512 });
-      cards.push(`<article><h3>${names[kind]}</h3><a href="${path(main)}"><img src="${path(main)}" alt="${names[kind]} ${labels[scenario]} ${panorama ? '전체 원본' : ''}"></a>${panorama ? `<div class="halves">${result.images.map((file, i) => `<a href="${path(file)}"><span>${i + 1}번 이미지</span><img src="${path(file)}" alt="${names[kind]} ${i + 1}번 분할 이미지"></a>`).join('')}</div>` : ''}<details><summary>본문</summary><pre>${data.caption}</pre></details></article>`);
+      cards.push(`<article><h3>${names[kind]}</h3><a href="${path(main)}"><img src="${path(main)}" alt="${names[kind]} ${labels[scenario]} ${panorama ? '전체 원본' : ''}"></a><details><summary>요일별 적용된 글자 크기</summary><pre>${fontRows.join('\n')}</pre></details>${panorama ? `<div class="halves">${result.images.map((file, i) => `<a href="${path(file)}"><span>${i + 1}번 이미지</span><img src="${path(file)}" alt="${names[kind]} ${i + 1}번 분할 이미지"></a>`).join('')}</div>` : ''}<details><summary>본문</summary><pre>${data.caption}</pre></details></article>`);
       captions.push(`[${names[kind]}]\n${data.caption}`);
     }
     await sharp({ create: { width: 1128, height: 2240, channels: 3, background: '#dfe5ee' } }).composite(previews).png().toFile(resolve(root, `${scenario}-overview.png`));
